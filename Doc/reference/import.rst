@@ -84,9 +84,9 @@ considered a package.
 
 All modules have a name.  Subpackage names are separated from their parent
 package name by a dot, akin to Python's standard attribute access syntax.  Thus
-you might have a module called :mod:`sys` and a package called :mod:`email`,
-which in turn has a subpackage called :mod:`email.mime` and a module within
-that subpackage called :mod:`email.mime.text`.
+you might have a package called :mod:`email`, which in turn has a subpackage
+called :mod:`email.mime` and a module within that subpackage called
+:mod:`email.mime.text`.
 
 
 Regular packages
@@ -490,21 +490,19 @@ submodule.  Let's say you have the following directory structure::
     spam/
         __init__.py
         foo.py
-        bar.py
 
-and ``spam/__init__.py`` has the following lines in it::
+and ``spam/__init__.py`` has the following line in it::
 
     from .foo import Foo
-    from .bar import Bar
 
-then executing the following puts a name binding to ``foo`` and ``bar`` in the
+then executing the following puts name bindings for ``foo`` and ``Foo`` in the
 ``spam`` module::
 
     >>> import spam
     >>> spam.foo
     <module 'spam.foo' from '/tmp/imports/spam/foo.py'>
-    >>> spam.bar
-    <module 'spam.bar' from '/tmp/imports/spam/bar.py'>
+    >>> spam.Foo
+    <class 'spam.foo.Foo'>
 
 Given Python's familiar name binding rules this might seem surprising, but
 it's actually a fundamental feature of the import system.  The invariant
@@ -543,7 +541,7 @@ the module.
 
 .. attribute:: __name__
 
-   The ``__name__`` attribute must be set to the fully-qualified name of
+   The ``__name__`` attribute must be set to the fully qualified name of
    the module.  This name is used to uniquely identify the module in
    the import system.
 
@@ -814,7 +812,7 @@ The path based finder iterates over every entry in the search path, and
 for each of these, looks for an appropriate :term:`path entry finder`
 (:class:`~importlib.abc.PathEntryFinder`) for the
 path entry.  Because this can be an expensive operation (e.g. there may be
-`stat()` call overheads for this search), the path based finder maintains
+``stat()`` call overheads for this search), the path based finder maintains
 a cache mapping path entries to path entry finders.  This cache is maintained
 in :data:`sys.path_importer_cache` (despite the name, this cache actually
 stores finder objects rather than being limited to :term:`importer` objects).
@@ -1015,25 +1013,6 @@ and ``__main__.__spec__`` is set accordingly, they're still considered
 *distinct* modules. This is due to the fact that blocks guarded by
 ``if __name__ == "__main__":`` checks only execute when the module is used
 to populate the ``__main__`` namespace, and not during normal import.
-
-
-Open issues
-===========
-
-XXX It would be really nice to have a diagram.
-
-XXX * (import_machinery.rst) how about a section devoted just to the
-attributes of modules and packages, perhaps expanding upon or supplanting the
-related entries in the data model reference page?
-
-XXX runpy, pkgutil, et al in the library manual should all get "See Also"
-links at the top pointing to the new import system section.
-
-XXX Add more explanation regarding the different ways in which
-``__main__`` is initialized?
-
-XXX Add more info on ``__main__`` quirks/pitfalls (i.e. copy from
-:pep:`395`).
 
 
 References

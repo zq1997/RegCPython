@@ -164,6 +164,8 @@ are always available.  They are listed here in alphabetical order.
    :func:`sys.breakpointhook` can be set to some other function and
    :func:`breakpoint` will automatically call that, allowing you to drop into
    the debugger of choice.
+   If :func:`sys.breakpointhook` is not accessible, this function will
+   raise :exc:`RuntimeError`.
 
    .. audit-event:: builtins.breakpoint breakpointhook breakpoint
 
@@ -248,7 +250,7 @@ are always available.  They are listed here in alphabetical order.
 
       class C:
           @classmethod
-          def f(cls, arg1, arg2, ...): ...
+          def f(cls, arg1, arg2): ...
 
    The ``@classmethod`` form is a function :term:`decorator` -- see
    :ref:`function` for details.
@@ -390,6 +392,7 @@ are always available.  They are listed here in alphabetical order.
    string.  The string must be the name of one of the object's attributes.  The
    function deletes the named attribute, provided the object allows it.  For
    example, ``delattr(x, 'foobar')`` is equivalent to ``del x.foobar``.
+   *name* need not be a Python identifier (see :func:`setattr`).
 
 
 .. _func-dict:
@@ -625,20 +628,23 @@ are always available.  They are listed here in alphabetical order.
    sign may be ``'+'`` or ``'-'``; a ``'+'`` sign has no effect on the value
    produced.  The argument may also be a string representing a NaN
    (not-a-number), or positive or negative infinity.  More precisely, the
-   input must conform to the following grammar after leading and trailing
-   whitespace characters are removed:
+   input must conform to the ``floatvalue`` production rule in the following
+   grammar, after leading and trailing whitespace characters are removed:
 
    .. productionlist:: float
       sign: "+" | "-"
       infinity: "Infinity" | "inf"
       nan: "nan"
-      numeric_value: `floatnumber` | `infinity` | `nan`
-      numeric_string: [`sign`] `numeric_value`
+      digitpart: `digit` (["_"] `digit`)*
+      number: [`digitpart`] "." `digitpart` | `digitpart` ["."]
+      exponent: ("e" | "E") ["+" | "-"] `digitpart`
+      floatnumber: number [`exponent`]
+      floatvalue: [`sign`] (`floatnumber` | `infinity` | `nan`)
 
-   Here ``floatnumber`` is the form of a Python floating-point literal,
-   described in :ref:`floating`.  Case is not significant, so, for example,
-   "inf", "Inf", "INFINITY", and "iNfINity" are all acceptable spellings for
-   positive infinity.
+   Here ``digit`` is a Unicode decimal digit (character in the Unicode general
+   category ``Nd``). Case is not significant, so, for example, "inf", "Inf",
+   "INFINITY", and "iNfINity" are all acceptable spellings for positive
+   infinity.
 
    Otherwise, if the argument is an integer or a floating point number, a
    floating point number with the same value (within Python's floating point
@@ -722,6 +728,7 @@ are always available.  They are listed here in alphabetical order.
    value of that attribute.  For example, ``getattr(x, 'foobar')`` is equivalent to
    ``x.foobar``.  If the named attribute does not exist, *default* is returned if
    provided, otherwise :exc:`AttributeError` is raised.
+   *name* need not be a Python identifier (see :func:`setattr`).
 
    .. note::
 
@@ -733,9 +740,9 @@ are always available.  They are listed here in alphabetical order.
 
 .. function:: globals()
 
-   Return a dictionary representing the current global symbol table. This is always
-   the dictionary of the current module (inside a function or method, this is the
-   module where it is defined, not the module from which it is called).
+   Return the dictionary implementing the current module namespace. For code within
+   functions, this is set when the function is defined and remains the same
+   regardless of where the function is called.
 
 
 .. function:: hasattr(object, name)
@@ -846,8 +853,8 @@ are always available.  They are listed here in alphabetical order.
 
    .. audit-event:: builtins.input/result result input
 
-      Raises an auditing event ``builtins.input/result`` with the result after
-      successfully reading input.
+      Raises an :ref:`auditing event <auditing>` ``builtins.input/result``
+      with the result after successfully reading input.
 
 
 .. class:: int([x])
@@ -861,17 +868,21 @@ are always available.  They are listed here in alphabetical order.
    For floating point numbers, this truncates towards zero.
 
    If *x* is not a number or if *base* is given, then *x* must be a string,
-   :class:`bytes`, or :class:`bytearray` instance representing an :ref:`integer
-   literal <integers>` in radix *base*.  Optionally, the literal can be
-   preceded by ``+`` or ``-`` (with no space in between) and surrounded by
-   whitespace.  A base-n literal consists of the digits 0 to n-1, with ``a``
-   to ``z`` (or ``A`` to ``Z``) having
-   values 10 to 35.  The default *base* is 10. The allowed values are 0 and 2--36.
-   Base-2, -8, and -16 literals can be optionally prefixed with ``0b``/``0B``,
-   ``0o``/``0O``, or ``0x``/``0X``, as with integer literals in code.  Base 0
-   means to interpret exactly as a code literal, so that the actual base is 2,
-   8, 10, or 16, and so that ``int('010', 0)`` is not legal, while
-   ``int('010')`` is, as well as ``int('010', 8)``.
+   :class:`bytes`, or :class:`bytearray` instance representing an integer
+   in radix *base*.  Optionally, the string can be preceded by ``+`` or ``-``
+   (with no space in between), have leading zeros, be surrounded by whitespace,
+   and have single underscores interspersed between digits.
+
+   A base-n integer string contains digits, each representing a value from 0 to
+   n-1. The values 0--9 can be represented by any Unicode decimal digit. The
+   values 10--35 can be represented by ``a`` to ``z`` (or ``A`` to ``Z``). The
+   default *base* is 10. The allowed bases are 0 and 2--36. Base-2, -8, and -16
+   strings can be optionally prefixed with ``0b``/``0B``, ``0o``/``0O``, or
+   ``0x``/``0X``, as with integer literals in code.  For base 0, the string is
+   interpreted in a similar way to an :ref:`integer literal in code <integers>`,
+   in that the actual base is 2, 8, 10, or 16 as determined by the prefix. Base
+   0 also disallows leading zeros: ``int('010', 0)`` is not legal, while
+   ``int('010')`` and ``int('010', 8)`` are.
 
    The integer type is described in :ref:`typesnumeric`.
 
@@ -890,6 +901,14 @@ are always available.  They are listed here in alphabetical order.
 
    .. versionchanged:: 3.8
       Falls back to :meth:`__index__` if :meth:`__int__` is not defined.
+
+   .. versionchanged:: 3.10.7
+      :class:`int` string inputs and string representations can be limited to
+      help avoid denial of service attacks. A :exc:`ValueError` is raised when
+      the limit is exceeded while converting a string *x* to an :class:`int` or
+      when converting an :class:`int` into a string would exceed the limit.
+      See the :ref:`integer string conversion length limitation
+      <int_max_str_digits>` documentation.
 
 
 .. function:: isinstance(object, classinfo)
@@ -913,7 +932,8 @@ are always available.  They are listed here in alphabetical order.
    Return ``True`` if *class* is a subclass (direct, indirect, or :term:`virtual
    <abstract base class>`) of *classinfo*.  A
    class is considered a subclass of itself. *classinfo* may be a tuple of class
-   objects or a :ref:`types-union`, in which case return ``True`` if *class* is a
+   objects (or recursively, other such tuples)
+   or a :ref:`types-union`, in which case return ``True`` if *class* is a
    subclass of any entry in *classinfo*.  In any other case, a :exc:`TypeError`
    exception is raised.
 
@@ -1168,7 +1188,11 @@ are always available.  They are listed here in alphabetical order.
    *buffering* is an optional integer used to set the buffering policy.  Pass 0
    to switch buffering off (only allowed in binary mode), 1 to select line
    buffering (only usable in text mode), and an integer > 1 to indicate the size
-   in bytes of a fixed-size chunk buffer.  When no *buffering* argument is
+   in bytes of a fixed-size chunk buffer. Note that specifying a buffer size this
+   way applies for binary buffered I/O, but ``TextIOWrapper`` (i.e., files opened
+   with ``mode='r+'``) would have another buffering. To disable buffering in
+   ``TextIOWrapper``, consider using the ``write_through`` flag for
+   :func:`io.TextIOWrapper.reconfigure`. When no *buffering* argument is
    given, the default buffering policy works as follows:
 
    * Binary files are buffered in fixed-size chunks; the size of the buffer is
@@ -1227,8 +1251,8 @@ are always available.  They are listed here in alphabetical order.
 
    .. _open-newline-parameter:
 
-   *newline* controls how :term:`universal newlines` mode works (it only
-   applies to text mode).  It can be ``None``, ``''``, ``'\n'``, ``'\r'``, and
+   *newline* determines how to parse newline characters from the stream.
+   It can be ``None``, ``''``, ``'\n'``, ``'\r'``, and
    ``'\r\n'``.  It works as follows:
 
    * When reading input from the stream, if *newline* is ``None``, universal
@@ -1382,7 +1406,7 @@ are always available.  They are listed here in alphabetical order.
       supported.
 
 
-.. function:: print(*objects, sep=' ', end='\\n', file=sys.stdout, flush=False)
+.. function:: print(*objects, sep=' ', end='\n', file=None, flush=False)
 
    Print *objects* to the text stream *file*, separated by *sep* and followed
    by *end*.  *sep*, *end*, *file*, and *flush*, if present, must be given as keyword
@@ -1502,6 +1526,8 @@ are always available.  They are listed here in alphabetical order.
    of the type of the object together with additional information often
    including the name and address of the object.  A class can control what this
    function returns for its instances by defining a :meth:`__repr__` method.
+   If :func:`sys.displayhook` is not accessible, this function will raise
+   :exc:`RuntimeError`.
 
 
 .. function:: reversed(seq)
@@ -1560,6 +1586,12 @@ are always available.  They are listed here in alphabetical order.
    object allows it.  For example, ``setattr(x, 'foobar', 123)`` is equivalent to
    ``x.foobar = 123``.
 
+   *name* need not be a Python identifier as defined in :ref:`identifiers`
+   unless the object chooses to enforce that, for example in a custom
+   :meth:`~object.__getattribute__` or via :attr:`~object.__slots__`.
+   An attribute whose name is not an identifier will not be accessible using
+   the dot notation, but is accessible through :func:`getattr` etc..
+
    .. note::
 
       Since :ref:`private name mangling <private-name-mangling>` happens at
@@ -1582,7 +1614,7 @@ are always available.  They are listed here in alphabetical order.
    :func:`itertools.islice` for an alternate version that returns an iterator.
 
 
-.. function:: sorted(iterable, *, key=None, reverse=False)
+.. function:: sorted(iterable, /, *, key=None, reverse=False)
 
    Return a new sorted list from the items in *iterable*.
 
@@ -1866,13 +1898,23 @@ are always available.  They are listed here in alphabetical order.
         >>> list(zip(('a', 'b', 'c'), (1, 2, 3), strict=True))
         [('a', 1), ('b', 2), ('c', 3)]
 
-     Unlike the default behavior, it checks that the lengths of iterables are
-     identical, raising a :exc:`ValueError` if they aren't:
+     Unlike the default behavior, it raises a :exc:`ValueError` if one iterable
+     is exhausted before the others:
 
-        >>> list(zip(range(3), ['fee', 'fi', 'fo', 'fum'], strict=True))
+        >>> for item in zip(range(3), ['fee', 'fi', 'fo', 'fum'], strict=True):  # doctest: +SKIP
+        ...     print(item)
+        ...
+        (0, 'fee')
+        (1, 'fi')
+        (2, 'fo')
         Traceback (most recent call last):
           ...
         ValueError: zip() argument 2 is longer than argument 1
+
+     ..
+        This doctest is disabled because doctest does not support capturing
+        output and exceptions in the same code unit.
+        https://github.com/python/cpython/issues/65382
 
      Without the ``strict=True`` argument, any bug that results in iterables of
      different lengths will be silenced, possibly manifesting as a hard-to-find

@@ -230,8 +230,8 @@ ABC hierarchy::
 
     object
      +-- Finder (deprecated)
-     |    +-- MetaPathFinder
-     |    +-- PathEntryFinder
+     +-- MetaPathFinder
+     +-- PathEntryFinder
      +-- Loader
           +-- ResourceLoader --------+
           +-- InspectLoader          |
@@ -264,8 +264,7 @@ ABC hierarchy::
 
 .. class:: MetaPathFinder
 
-   An abstract base class representing a :term:`meta path finder`. For
-   compatibility, this is a subclass of :class:`Finder`.
+   An abstract base class representing a :term:`meta path finder`.
 
    .. versionadded:: 3.3
 
@@ -448,7 +447,7 @@ ABC hierarchy::
             package. This attribute is not set on modules.
 
         - :attr:`__package__`
-            The fully-qualified name of the package under which the module was
+            The fully qualified name of the package under which the module was
             loaded as a submodule (or the empty string for top-level modules).
             For packages, it is the same as :attr:`__name__`.  The
             :func:`importlib.util.module_for_loader` decorator can handle the
@@ -810,8 +809,11 @@ ABC hierarchy::
 
 .. class:: Traversable
 
-    An object with a subset of pathlib.Path methods suitable for
+    An object with a subset of :class:`pathlib.Path` methods suitable for
     traversing directories and opening files.
+
+    For a representation of the object on the file-system, use
+    :meth:`importlib.resources.as_file`.
 
     .. versionadded:: 3.9
 
@@ -855,19 +857,23 @@ ABC hierarchy::
 
        Read contents of self as text.
 
+    Note: In Python 3.11 and later, this class is found in ``importlib.resources.abc``.
+
 
 .. class:: TraversableResources
 
     An abstract base class for resource readers capable of serving
     the ``files`` interface. Subclasses ResourceReader and provides
     concrete implementations of the ResourceReader's abstract
-    methods. Therefore, any loader supplying TraversableReader
+    methods. Therefore, any loader supplying TraversableResources
     also supplies ResourceReader.
 
     Loaders that wish to support resource reading are expected to
     implement this interface.
 
     .. versionadded:: 3.9
+
+    Note: In Python 3.11 and later, this class is found in ``importlib.resources.abc``.
 
 
 :mod:`importlib.resources` -- Resources
@@ -931,7 +937,7 @@ The following functions are available.
 
 .. function:: files(package)
 
-    Returns an :class:`importlib.resources.abc.Traversable` object
+    Returns an :class:`importlib.abc.Traversable` object
     representing the resource container for the package (think directory)
     and its resources (think files). A Traversable may contain other
     containers (think subdirectories).
@@ -943,7 +949,7 @@ The following functions are available.
 
 .. function:: as_file(traversable)
 
-    Given a :class:`importlib.resources.abc.Traversable` object representing
+    Given a :class:`importlib.abc.Traversable` object representing
     a file, typically from :func:`importlib.resources.files`, return
     a context manager for use in a :keyword:`with` statement.
     The context manager provides a :class:`pathlib.Path` object.
@@ -1411,7 +1417,7 @@ find and load modules.
 
    (``__name__``)
 
-   A string for the fully-qualified name of the module.
+   A string for the fully qualified name of the module.
 
    .. attribute:: loader
 
@@ -1451,7 +1457,7 @@ find and load modules.
 
    (``__package__``)
 
-   (Read-only) The fully-qualified name of the package under which the module
+   (Read-only) The fully qualified name of the package under which the module
    should be loaded as a submodule (or the empty string for top-level modules).
    For packages, it is the same as :attr:`__name__`.
 
@@ -1719,7 +1725,7 @@ an :term:`importer`.
 
    .. classmethod:: factory(loader)
 
-      A static method which returns a callable that creates a lazy loader. This
+      A class method which returns a callable that creates a lazy loader. This
       is meant to be used in situations where the loader is passed by class
       instead of by instance.
       ::
@@ -1750,6 +1756,9 @@ Checking if a module can be imported
 
 If you need to find out if a module can be imported without actually doing the
 import, then you should use :func:`importlib.util.find_spec`.
+
+Note that if ``name`` is a submodule (contains a dot),
+:func:`importlib.util.find_spec` will import the parent module.
 ::
 
   import importlib.util

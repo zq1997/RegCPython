@@ -156,8 +156,14 @@ BaseException_setstate(PyObject *self, PyObject *state)
             return NULL;
         }
         while (PyDict_Next(state, &i, &d_key, &d_value)) {
-            if (PyObject_SetAttr(self, d_key, d_value) < 0)
+            Py_INCREF(d_key);
+            Py_INCREF(d_value);
+            int res = PyObject_SetAttr(self, d_key, d_value);
+            Py_DECREF(d_value);
+            Py_DECREF(d_key);
+            if (res < 0) {
                 return NULL;
+            }
         }
     }
     Py_RETURN_NONE;
@@ -847,14 +853,7 @@ oserror_parse_args(PyObject **p_args,
             winerrcode = PyLong_AsLong(*winerror);
             if (winerrcode == -1 && PyErr_Occurred())
                 return -1;
-            /* Set errno to the corresponding POSIX errno (overriding
-               first argument).  Windows Socket error codes (>= 10000)
-               have the same value as their POSIX counterparts.
-            */
-            if (winerrcode < 10000)
-                errcode = winerror_to_errno(winerrcode);
-            else
-                errcode = winerrcode;
+            errcode = winerror_to_errno(winerrcode);
             *myerrno = PyLong_FromLong(errcode);
             if (!*myerrno)
                 return -1;

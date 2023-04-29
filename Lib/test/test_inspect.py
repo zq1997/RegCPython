@@ -132,8 +132,8 @@ class TestPredicates(IsTestBase):
         self.istest(inspect.iscode, 'mod.spam.__code__')
         try:
             1/0
-        except:
-            tb = sys.exc_info()[2]
+        except Exception as e:
+            tb = e.__traceback__
             self.istest(inspect.isframe, 'tb.tb_frame')
             self.istest(inspect.istraceback, 'tb')
             if hasattr(types, 'GetSetDescriptorType'):
@@ -188,6 +188,10 @@ class TestPredicates(IsTestBase):
                     gen_coroutine_function_example))))
         self.assertTrue(inspect.isgenerator(gen_coro))
 
+        self.assertFalse(
+            inspect.iscoroutinefunction(unittest.mock.Mock()))
+        self.assertTrue(
+            inspect.iscoroutinefunction(unittest.mock.AsyncMock()))
         self.assertTrue(
             inspect.iscoroutinefunction(coroutine_function_example))
         self.assertTrue(
@@ -197,6 +201,10 @@ class TestPredicates(IsTestBase):
         self.assertTrue(inspect.iscoroutine(coro))
 
         self.assertFalse(
+            inspect.isgeneratorfunction(unittest.mock.Mock()))
+        self.assertFalse(
+            inspect.isgeneratorfunction(unittest.mock.AsyncMock()))
+        self.assertFalse(
             inspect.isgeneratorfunction(coroutine_function_example))
         self.assertFalse(
             inspect.isgeneratorfunction(
@@ -204,6 +212,12 @@ class TestPredicates(IsTestBase):
                     coroutine_function_example))))
         self.assertFalse(inspect.isgenerator(coro))
 
+        self.assertFalse(
+            inspect.isasyncgenfunction(unittest.mock.Mock()))
+        self.assertFalse(
+            inspect.isasyncgenfunction(unittest.mock.AsyncMock()))
+        self.assertFalse(
+            inspect.isasyncgenfunction(coroutine_function_example))
         self.assertTrue(
             inspect.isasyncgenfunction(async_generator_function_example))
         self.assertTrue(
@@ -811,6 +825,12 @@ class TestNoEOL(GetSourceBase):
         self.assertSourceEqual(self.fodderModule.X, 1, 2)
 
 
+class TestComplexDecorator(GetSourceBase):
+    fodderModule = mod2
+
+    def test_parens_in_decorator(self):
+        self.assertSourceEqual(self.fodderModule.complex_decorated, 273, 275)
+
 class _BrokenDataDescriptor(object):
     """
     A broken data descriptor. See bug #1785.
@@ -1402,6 +1422,13 @@ class TestClassesAndFunctions(unittest.TestCase):
         # test that local namespace lookups work
         self.assertEqual(inspect.get_annotations(isa.MyClassWithLocalAnnotations), {'x': 'mytype'})
         self.assertEqual(inspect.get_annotations(isa.MyClassWithLocalAnnotations, eval_str=True), {'x': int})
+
+
+class TestFormatAnnotation(unittest.TestCase):
+    def test_typing_replacement(self):
+        from test.typinganndata.ann_module9 import ann, ann1
+        self.assertEqual(inspect.formatannotation(ann), 'Union[List[str], int]')
+        self.assertEqual(inspect.formatannotation(ann1), 'Union[List[testModule.typing.A], int]')
 
 
 class TestIsDataDescriptor(unittest.TestCase):
@@ -2450,7 +2477,7 @@ class TestSignatureObject(unittest.TestCase):
         self.assertEqual(p('f'), False)
         self.assertEqual(p('local'), 3)
         self.assertEqual(p('sys'), sys.maxsize)
-        self.assertNotIn('exp', signature.parameters)
+        self.assertEqual(p('exp'), sys.maxsize - 1)
 
         test_callable(object)
 
@@ -2936,8 +2963,6 @@ class TestSignatureObject(unittest.TestCase):
         self.assertEqual(str(inspect.signature(foo)), '(a)')
 
     def test_signature_on_decorated(self):
-        import functools
-
         def decorator(func):
             @functools.wraps(func)
             def wrapper(*args, **kwargs) -> int:
@@ -2948,6 +2973,8 @@ class TestSignatureObject(unittest.TestCase):
             @decorator
             def bar(self, a, b):
                 pass
+
+        bar = decorator(Foo().bar)
 
         self.assertEqual(self.signature(Foo.bar),
                          ((('self', ..., ..., "positional_or_keyword"),
@@ -2966,6 +2993,11 @@ class TestSignatureObject(unittest.TestCase):
                           ...)) # functools.wraps will copy __annotations__
                                 # from "func" to "wrapper", hence no
                                 # return_annotation
+
+        self.assertEqual(self.signature(bar),
+                         ((('a', ..., ..., "positional_or_keyword"),
+                           ('b', ..., ..., "positional_or_keyword")),
+                          ...))
 
         # Test that we handle method wrappers correctly
         def decorator(func):
@@ -4215,9 +4247,39 @@ class TestSignatureDefinitions(unittest.TestCase):
         sig = inspect.signature(func)
         self.assertIsNotNone(sig)
         self.assertEqual(str(sig), '(self, /, a, b=1, *args, c, d=2, **kwargs)')
+
         func.__text_signature__ = '($self, a, b=1, /, *args, c, d=2, **kwargs)'
         sig = inspect.signature(func)
         self.assertEqual(str(sig), '(self, a, b=1, /, *args, c, d=2, **kwargs)')
+
+        func.__text_signature__ = '(self, a=1+2, b=4-3, c=1 | 3 | 16)'
+        sig = inspect.signature(func)
+        self.assertEqual(str(sig), '(self, a=3, b=1, c=19)')
+
+        func.__text_signature__ = '(self, a=1,\nb=2,\n\n\n   c=3)'
+        sig = inspect.signature(func)
+        self.assertEqual(str(sig), '(self, a=1, b=2, c=3)')
+
+        func.__text_signature__ = '(self, x=does_not_exist)'
+        with self.assertRaises(ValueError):
+            inspect.signature(func)
+        func.__text_signature__ = '(self, x=sys, y=inspect)'
+        with self.assertRaises(ValueError):
+            inspect.signature(func)
+        func.__text_signature__ = '(self, 123)'
+        with self.assertRaises(ValueError):
+            inspect.signature(func)
+
+    def test_base_class_have_text_signature(self):
+        # see issue 43118
+        from test.ann_module7 import BufferedReader
+        class MyBufferedReader(BufferedReader):
+            """buffer reader class."""
+
+        text_signature = BufferedReader.__text_signature__
+        self.assertEqual(text_signature, '(raw, buffer_size=DEFAULT_BUFFER_SIZE)')
+        sig = inspect.signature(MyBufferedReader)
+        self.assertEqual(str(sig), '(raw, buffer_size=8192)')
 
 
 class NTimesUnwrappable:

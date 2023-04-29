@@ -275,8 +275,27 @@ re-raise the exception::
 Exception Chaining
 ==================
 
-The :keyword:`raise` statement allows an optional :keyword:`from<raise>` which enables
-chaining exceptions. For example::
+If an unhandled exception occurs inside an :keyword:`except` section, it will
+have the exception being handled attached to it and included in the error
+message::
+
+    >>> try:
+    ...     open("database.sqlite")
+    ... except OSError:
+    ...     raise RuntimeError("unable to handle error")
+    ...
+    Traceback (most recent call last):
+      File "<stdin>", line 2, in <module>
+    FileNotFoundError: [Errno 2] No such file or directory: 'database.sqlite'
+    <BLANKLINE>
+    During handling of the above exception, another exception occurred:
+    <BLANKLINE>
+    Traceback (most recent call last):
+      File "<stdin>", line 4, in <module>
+    RuntimeError: unable to handle error
+
+To indicate that an exception is a direct consequence of another, the
+:keyword:`raise` statement allows an optional :keyword:`from<raise>` clause::
 
     # exc must be exception instance or None.
     raise RuntimeError from exc
@@ -302,9 +321,8 @@ This can be useful when you are transforming exceptions. For example::
       File "<stdin>", line 4, in <module>
     RuntimeError: Failed to open database
 
-Exception chaining happens automatically when an exception is raised inside an
-:keyword:`except` or :keyword:`finally` section. This can be
-disabled by using ``from None`` idiom:
+It also allows disabling automatic exception chaining using the ``from None``
+idiom::
 
     >>> try:
     ...     open('database.sqlite')
@@ -329,41 +347,7 @@ be derived from the :exc:`Exception` class, either directly or indirectly.
 
 Exception classes can be defined which do anything any other class can do, but
 are usually kept simple, often only offering a number of attributes that allow
-information about the error to be extracted by handlers for the exception.  When
-creating a module that can raise several distinct errors, a common practice is
-to create a base class for exceptions defined by that module, and subclass that
-to create specific exception classes for different error conditions::
-
-   class Error(Exception):
-       """Base class for exceptions in this module."""
-       pass
-
-   class InputError(Error):
-       """Exception raised for errors in the input.
-
-       Attributes:
-           expression -- input expression in which the error occurred
-           message -- explanation of the error
-       """
-
-       def __init__(self, expression, message):
-           self.expression = expression
-           self.message = message
-
-   class TransitionError(Error):
-       """Raised when an operation attempts a state transition that's not
-       allowed.
-
-       Attributes:
-           previous -- state at beginning of transition
-           next -- attempted new state
-           message -- explanation of why the specific transition is not allowed
-       """
-
-       def __init__(self, previous, next, message):
-           self.previous = previous
-           self.next = next
-           self.message = message
+information about the error to be extracted by handlers for the exception.
 
 Most exceptions are defined with names that end in "Error", similar to the
 naming of the standard exceptions.

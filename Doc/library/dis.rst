@@ -24,6 +24,10 @@ interpreter.
       Use 2 bytes for each instruction. Previously the number of bytes varied
       by instruction.
 
+   .. versionchanged:: 3.10
+      The argument of jump, exception handling and loop instructions is now
+      the instruction offset rather than the byte offset.
+
 
 Example: Given the function :func:`myfunc`::
 
@@ -232,14 +236,16 @@ operation is being performed, so the intermediate analysis object isn't useful:
 
 .. function:: findlinestarts(code)
 
-   This generator function uses the ``co_firstlineno`` and ``co_lnotab``
-   attributes of the code object *code* to find the offsets which are starts of
+   This generator function uses the ``co_lines`` method
+   of the code object *code* to find the offsets which are starts of
    lines in the source code.  They are generated as ``(offset, lineno)`` pairs.
-   See :source:`Objects/lnotab_notes.txt` for the ``co_lnotab`` format and
-   how to decode it.
 
    .. versionchanged:: 3.6
       Line numbers can be decreasing. Before, they were always increasing.
+
+   .. versionchanged:: 3.10
+      The :pep:`626` ``co_lines`` method is used instead of the ``co_firstlineno``
+      and ``co_lnotab`` attributes of the code object.
 
 
 .. function:: findlabels(code)
@@ -591,8 +597,8 @@ the original TOS1.
 
 .. opcode:: GET_ANEXT
 
-   Implements ``PUSH(get_awaitable(TOS.__anext__()))``.  See ``GET_AWAITABLE``
-   for details about ``get_awaitable``
+   Pushes ``get_awaitable(TOS.__anext__())`` to the stack.  See
+   ``GET_AWAITABLE`` for details about ``get_awaitable``.
 
    .. versionadded:: 3.5
 
@@ -1252,9 +1258,8 @@ All of the following opcodes use their arguments.
 
 .. opcode:: GEN_START (kind)
 
-    Pops TOS. If TOS was not ``None``, raises an exception. The ``kind``
-    operand corresponds to the type of generator or coroutine and determines
-    the error message. The legal kinds are 0 for generator, 1 for coroutine,
+    Pops TOS. The ``kind`` operand corresponds to the type of generator or
+    coroutine. The legal kinds are 0 for generator, 1 for coroutine,
     and 2 for async generator.
 
    .. versionadded:: 3.10

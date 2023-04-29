@@ -65,7 +65,7 @@ PyTypeObject PyCThunk_Type = {
     0,                                          /* tp_setattro */
     0,                                          /* tp_as_buffer */
     Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,                            /* tp_flags */
-    "CThunkObject",                             /* tp_doc */
+    PyDoc_STR("CThunkObject"),                  /* tp_doc */
     CThunkObject_traverse,                      /* tp_traverse */
     CThunkObject_clear,                         /* tp_clear */
     0,                                          /* tp_richcompare */
@@ -282,15 +282,14 @@ static void _CallPythonObject(void *mem,
                                       "of ctypes callback function",
                                       callable);
         }
-        else if (keep == Py_None) {
-            /* Nothing to keep */
-            Py_DECREF(keep);
-        }
         else if (setfunc != _ctypes_get_fielddesc("O")->setfunc) {
-            if (-1 == PyErr_WarnEx(PyExc_RuntimeWarning,
-                                   "memory leak in callback function.",
-                                   1))
-            {
+            if (keep == Py_None) {
+                /* Nothing to keep */
+                Py_DECREF(keep);
+            }
+            else if (PyErr_WarnEx(PyExc_RuntimeWarning,
+                                  "memory leak in callback function.",
+                                  1) == -1) {
                 _PyErr_WriteUnraisableMsg("on converting result "
                                           "of ctypes callback function",
                                           callable);

@@ -5,24 +5,18 @@
    :synopsis: Operations on pathnames.
 
 **Source code:** :source:`Lib/posixpath.py` (for POSIX) and
-:source:`Lib/ntpath.py` (for Windows NT).
+:source:`Lib/ntpath.py` (for Windows).
 
 .. index:: single: path; operations
 
 --------------
 
-This module implements some useful functions on pathnames. To read or
-write files see :func:`open`, and for accessing the filesystem see the
-:mod:`os` module. The path parameters can be passed as either strings,
-or bytes. Applications are encouraged to represent file names as
-(Unicode) character strings. Unfortunately, some file names may not be
-representable as strings on Unix, so applications that need to support
-arbitrary file names on Unix should use bytes objects to represent
-path names. Vice versa, using bytes objects cannot represent all file
-names on Windows (in the standard ``mbcs`` encoding), hence Windows
-applications should use string objects to access all files.
+This module implements some useful functions on pathnames. To read or write
+files see :func:`open`, and for accessing the filesystem see the :mod:`os`
+module. The path parameters can be passed as strings, or bytes, or any object
+implementing the :class:`os.PathLike` protocol.
 
-Unlike a unix shell, Python does not do any *automatic* path expansions.
+Unlike a Unix shell, Python does not do any *automatic* path expansions.
 Functions such as :func:`expanduser` and :func:`expandvars` can be invoked
 explicitly when an application desires shell-like path expansion.  (See also
 the :mod:`glob` module.)
@@ -37,7 +31,6 @@ the :mod:`glob` module.)
    All of these functions accept either only bytes or only string objects as
    their parameters.  The result is an object of the same type, if a path or
    file name is returned.
-
 
 .. note::
 
@@ -304,17 +297,18 @@ the :mod:`glob` module.)
 
 .. function:: join(path, *paths)
 
-   Join one or more path components intelligently.  The return value is the
-   concatenation of *path* and any members of *\*paths* with exactly one
-   directory separator following each non-empty part except the last, meaning
-   that the result will only end in a separator if the last part is empty.  If
-   a component is an absolute path, all previous components are thrown away
-   and joining continues from the absolute path component.
+   Join one or more path segments intelligently.  The return value is the
+   concatenation of *path* and all members of *\*paths*, with exactly one
+   directory separator following each non-empty part, except the last. That is,
+   the result will only end in a separator if the last part is either empty or
+   ends in a separator. If a segment is an absolute path (which on Windows
+   requires both a drive and a root), then all previous segments are ignored and
+   joining continues from the absolute path segment.
 
-   On Windows, the drive letter is not reset when an absolute path component
-   (e.g., ``r'\foo'``) is encountered.  If a component contains a drive
-   letter, all previous components are thrown away and the drive letter is
-   reset.  Note that since there is a current directory for each drive,
+   On Windows, the drive is not reset when a rooted path segment (e.g.,
+   ``r'\foo'``) is encountered. If a segment is on a different drive or is an
+   absolute path, all previous segments are ignored and the drive is reset. Note
+   that since there is a current directory for each drive,
    ``os.path.join("c:", "foo")`` represents a path relative to the current
    directory on drive :file:`C:` (:file:`c:foo`), not :file:`c:\\foo`.
 
@@ -342,7 +336,7 @@ the :mod:`glob` module.)
 
   .. note::
       On POSIX systems, in accordance with `IEEE Std 1003.1 2013 Edition; 4.13
-      Pathname Resolution <http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap04.html#tag_04_13>`_,
+      Pathname Resolution <https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap04.html#tag_04_13>`_,
       if a pathname begins with exactly two slashes, the first component
       following the leading characters may be interpreted in an implementation-defined
       manner, although more than two leading characters shall be treated as a
@@ -501,11 +495,16 @@ the :mod:`glob` module.)
 
       >>> splitext('foo.bar.exe')
       ('foo.bar', '.exe')
+      >>> splitext('/foo/bar.exe')
+      ('/foo/bar', '.exe')
 
-   Leading periods on the basename are ignored::
+   Leading periods of the last component of the path are considered to
+   be part of the root::
 
       >>> splitext('.cshrc')
       ('.cshrc', '')
+      >>> splitext('/foo/....jpg')
+      ('/foo/....jpg', '')
 
    .. versionchanged:: 3.6
       Accepts a :term:`path-like object`.

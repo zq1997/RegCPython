@@ -890,19 +890,29 @@ set_attribute_error_context(PyObject* v, PyObject* name)
     assert(PyErr_Occurred());
     _Py_IDENTIFIER(name);
     _Py_IDENTIFIER(obj);
-    // Intercept AttributeError exceptions and augment them to offer
-    // suggestions later.
-    if (PyErr_ExceptionMatches(PyExc_AttributeError)){
-        PyObject *type, *value, *traceback;
-        PyErr_Fetch(&type, &value, &traceback);
-        PyErr_NormalizeException(&type, &value, &traceback);
-        if (PyErr_GivenExceptionMatches(value, PyExc_AttributeError) &&
-            (_PyObject_SetAttrId(value, &PyId_name, name) ||
-             _PyObject_SetAttrId(value, &PyId_obj, v))) {
-            return 1;
-        }
-        PyErr_Restore(type, value, traceback);
+    if (!PyErr_ExceptionMatches(PyExc_AttributeError)) {
+        return 0;
     }
+    // Intercept AttributeError exceptions and augment them to offer suggestions later.
+    PyObject *type, *value, *traceback;
+    PyErr_Fetch(&type, &value, &traceback);
+    PyErr_NormalizeException(&type, &value, &traceback);
+    // Check if the normalized exception is indeed an AttributeError
+    if (!PyErr_GivenExceptionMatches(value, PyExc_AttributeError)) {
+        goto restore;
+    }
+    PyAttributeErrorObject* the_exc = (PyAttributeErrorObject*) value;
+    // Check if this exception was already augmented
+    if (the_exc->name || the_exc->obj) {
+        goto restore;
+    }
+    // Augment the exception with the name and object
+    if (_PyObject_SetAttrId(value, &PyId_name, name) ||
+        _PyObject_SetAttrId(value, &PyId_obj, v)) {
+        return 1;
+    }
+restore:
+    PyErr_Restore(type, value, traceback);
     return 0;
 }
 
@@ -1081,8 +1091,9 @@ _PyObject_GetDictPtr(PyObject *obj)
             tsize = -tsize;
         }
         size_t size = _PyObject_VAR_SIZE(tp, tsize);
+        assert(size <= (size_t)PY_SSIZE_T_MAX);
+        dictoffset += (Py_ssize_t)size;
 
-        dictoffset += (long)size;
         _PyObject_ASSERT(obj, dictoffset > 0);
         _PyObject_ASSERT(obj, dictoffset % SIZEOF_VOID_P == 0);
     }
@@ -1309,6 +1320,8 @@ _PyObject_GenericGetAttrWithDict(PyObject *obj, PyObject *name,
         PyErr_Format(PyExc_AttributeError,
                      "'%.50s' object has no attribute '%U'",
                      tp->tp_name, name);
+
+        set_attribute_error_context(obj, name);
     }
   done:
     Py_XDECREF(descr);

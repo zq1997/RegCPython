@@ -11,6 +11,14 @@ import gc
 import contextlib
 
 
+class BadStr(str):
+    def __eq__(self, other):
+        return True
+    def __hash__(self):
+        # Guaranteed different hash
+        return str.__hash__(self) ^ 3
+
+
 class FunctionCalls(unittest.TestCase):
 
     def test_kwargs_order(self):
@@ -132,6 +140,18 @@ class CFunctionCallsErrorMessages(unittest.TestCase):
         msg = r"^print\(\) takes at most 4 keyword arguments \(5 given\)$"
         self.assertRaisesRegex(TypeError, msg,
                                print, 0, sep=1, end=2, file=3, flush=4, foo=5)
+
+    def test_varargs18_kw(self):
+        # _PyArg_UnpackKeywordsWithVararg()
+        msg = r"invalid keyword argument for print\(\)$"
+        with self.assertRaisesRegex(TypeError, msg):
+            print(0, 1, **{BadStr('foo'): ','})
+
+    def test_varargs19_kw(self):
+        # _PyArg_UnpackKeywords()
+        msg = r"invalid keyword argument for round\(\)$"
+        with self.assertRaisesRegex(TypeError, msg):
+            round(1.75, **{BadStr('foo'): 1})
 
     def test_oldargs0_1(self):
         msg = r"keys\(\) takes no arguments \(1 given\)"
@@ -526,7 +546,7 @@ class FastCallTests(unittest.TestCase):
                 self.kwargs.clear()
                 gc.collect()
                 return 0
-        x = IntWithDict(dont_inherit=IntWithDict())
+        x = IntWithDict(optimize=IntWithDict())
         # We test the argument handling of "compile" here, the compilation
         # itself is not relevant. When we pass flags=x below, x.__index__() is
         # called, which changes the keywords dict.

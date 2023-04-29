@@ -371,6 +371,18 @@ class CAPITest(unittest.TestCase):
         self.assertRaises(TypeError, _testcapi.get_mapping_values, bad_mapping)
         self.assertRaises(TypeError, _testcapi.get_mapping_items, bad_mapping)
 
+    def test_mapping_has_key(self):
+        dct = {'a': 1}
+        self.assertTrue(_testcapi.mapping_has_key(dct, 'a'))
+        self.assertFalse(_testcapi.mapping_has_key(dct, 'b'))
+
+        class SubDict(dict):
+            pass
+
+        dct2 = SubDict({'a': 1})
+        self.assertTrue(_testcapi.mapping_has_key(dct2, 'a'))
+        self.assertFalse(_testcapi.mapping_has_key(dct2, 'b'))
+
     @unittest.skipUnless(hasattr(_testcapi, 'negative_refcount'),
                          'need _testcapi.negative_refcount')
     def test_negative_refcount(self):
@@ -632,6 +644,14 @@ class CAPITest(unittest.TestCase):
         s = _testcapi.pyobject_bytes_from_null()
         self.assertEqual(s, b'<NULL>')
 
+    def test_Py_CompileString(self):
+        # Check that Py_CompileString respects the coding cookie
+        _compile = _testcapi.Py_CompileString
+        code = b"# -*- coding: latin1 -*-\nprint('\xc2\xa4')\n"
+        result = _compile(code)
+        expected = compile(code, "<string>", "exec")
+        self.assertEqual(result.co_consts, expected.co_consts)
+
 
 class TestPendingCalls(unittest.TestCase):
 
@@ -818,6 +838,20 @@ class TestThreadState(unittest.TestCase):
         t.start()
         t.join()
 
+    @threading_helper.reap_threads
+    def test_gilstate_ensure_no_deadlock(self):
+        # See https://github.com/python/cpython/issues/96071
+        code = textwrap.dedent(f"""
+            import _testcapi
+
+            def callback():
+                print('callback called')
+
+            _testcapi._test_thread_state(callback)
+            """)
+        ret = assert_python_ok('-X', 'tracemalloc', '-c', code)
+        self.assertIn(b'callback called', ret.out)
+
 
 class Test_testcapi(unittest.TestCase):
     locals().update((name, getattr(_testcapi, name))
@@ -843,8 +877,13 @@ class PyMemDebugTests(unittest.TestCase):
 
     def check(self, code):
         with support.SuppressCrashReport():
-            out = assert_python_failure('-c', code,
-                                        PYTHONMALLOC=self.PYTHONMALLOC)
+            out = assert_python_failure(
+                '-c', code,
+                PYTHONMALLOC=self.PYTHONMALLOC,
+                # FreeBSD: instruct jemalloc to not fill freed() memory
+                # with junk byte 0x5a, see JEMALLOC(3)
+                MALLOC_CONF="junk:false",
+            )
         stderr = out.err
         return stderr.decode('ascii', 'replace')
 
@@ -914,7 +953,11 @@ class PyMemDebugTests(unittest.TestCase):
             except _testcapi.error:
                 os._exit(1)
         ''')
-        assert_python_ok('-c', code, PYTHONMALLOC=self.PYTHONMALLOC)
+        assert_python_ok(
+            '-c', code,
+            PYTHONMALLOC=self.PYTHONMALLOC,
+            MALLOC_CONF="junk:false",
+        )
 
     def test_pyobject_null_is_freed(self):
         self.check_pyobject_is_freed('check_pyobject_null_is_freed')
@@ -1014,13 +1057,21 @@ class Test_ModuleStateAccess(unittest.TestCase):
                 with self.assertRaises(TypeError):
                     increment_count(1, 2, 3)
 
-    def test_Py_CompileString(self):
-        # Check that Py_CompileString respects the coding cookie
-        _compile = _testcapi.Py_CompileString
-        code = b"# -*- coding: latin1 -*-\nprint('\xc2\xa4')\n"
-        result = _compile(code)
-        expected = compile(code, "<string>", "exec")
-        self.assertEqual(result.co_consts, expected.co_consts)
+    def test_get_module_bad_def(self):
+        # _PyType_GetModuleByDef fails gracefully if it doesn't
+        # find what it's looking for.
+        # see bpo-46433
+        instance = self.module.StateAccessType()
+        with self.assertRaises(TypeError):
+            instance.getmodulebydef_bad_def()
+
+    def test_get_module_static_in_mro(self):
+        # Here, the class _PyType_GetModuleByDef is looking for
+        # appears in the MRO after a static type (Exception).
+        # see bpo-46433
+        class Subclass(BaseException, self.module.StateAccessType):
+            pass
+        self.assertIs(Subclass().get_defining_module(), self.module)
 
 
 if __name__ == "__main__":

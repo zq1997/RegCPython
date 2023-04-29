@@ -35,6 +35,35 @@ and implementation-dependent.  If your input data consists of mixed types,
 you may be able to use :func:`map` to ensure a consistent result, for
 example: ``map(float, input_data)``.
 
+Some datasets use ``NaN`` (not a number) values to represent missing data.
+Since NaNs have unusual comparison semantics, they cause surprising or
+undefined behaviors in the statistics functions that sort data or that count
+occurrences.  The functions affected are ``median()``, ``median_low()``,
+``median_high()``, ``median_grouped()``, ``mode()``, ``multimode()``, and
+``quantiles()``.  The ``NaN`` values should be stripped before calling these
+functions::
+
+    >>> from statistics import median
+    >>> from math import isnan
+    >>> from itertools import filterfalse
+
+    >>> data = [20.7, float('NaN'),19.2, 18.3, float('NaN'), 14.4]
+    >>> sorted(data)  # This has surprising behavior
+    [20.7, nan, 14.4, 18.3, 19.2, nan]
+    >>> median(data)  # This result is unexpected
+    16.35
+
+    >>> sum(map(isnan, data))    # Number of missing values
+    2
+    >>> clean = list(filterfalse(isnan, data))  # Strip NaN values
+    >>> clean
+    [20.7, 19.2, 18.3, 14.4]
+    >>> sorted(clean)  # Sorting now works as expected
+    [14.4, 18.3, 19.2, 20.7]
+    >>> median(clean)       # This result is now well defined
+    18.75
+
+
 Averages and measures of central location
 -----------------------------------------
 
@@ -116,10 +145,11 @@ However, for reading convenience, most of the examples show sorted sequences.
 
    .. note::
 
-      The mean is strongly affected by outliers and is not a robust estimator
-      for central location: the mean is not necessarily a typical example of
-      the data points.  For more robust measures of central location, see
-      :func:`median` and :func:`mode`.
+      The mean is strongly affected by `outliers
+      <https://en.wikipedia.org/wiki/Outlier>`_ and is not necessarily a
+      typical example of the data points. For a more robust, although less
+      efficient, measure of `central tendency
+      <https://en.wikipedia.org/wiki/Central_tendency>`_, see :func:`median`.
 
       The sample mean gives an unbiased estimate of the true population mean,
       so that when taken on average over all the possible samples,
@@ -756,7 +786,7 @@ of applications in statistics.
        The relative likelihood is computed as the probability of a sample
        occurring in a narrow range divided by the width of the range (hence
        the word "density").  Since the likelihood is relative to other points,
-       its value can be greater than `1.0`.
+       its value can be greater than ``1.0``.
 
     .. method:: NormalDist.cdf(x)
 
@@ -770,7 +800,7 @@ of applications in statistics.
        Compute the inverse cumulative distribution function, also known as the
        `quantile function <https://en.wikipedia.org/wiki/Quantile_function>`_
        or the `percent-point
-       <https://www.statisticshowto.datasciencecentral.com/inverse-distribution-function/>`_
+       <https://web.archive.org/web/20190203145224/https://www.statisticshowto.datasciencecentral.com/inverse-distribution-function/>`_
        function.  Mathematically, it is written ``x : P(X <= x) = p``.
 
        Finds the value *x* of the random variable *X* such that the
@@ -881,7 +911,7 @@ Carlo simulation <https://en.wikipedia.org/wiki/Monte_Carlo_method>`_:
     [1.4591308524824727, 1.8035946855390597, 2.175091447274739]
 
 Normal distributions can be used to approximate `Binomial
-distributions <http://mathworld.wolfram.com/BinomialDistribution.html>`_
+distributions <https://mathworld.wolfram.com/BinomialDistribution.html>`_
 when the sample size is large and when the probability of a successful
 trial is near 50%.
 
@@ -919,7 +949,7 @@ probability that the Python room will stay within its capacity limits?
 Normal distributions commonly arise in machine learning problems.
 
 Wikipedia has a `nice example of a Naive Bayesian Classifier
-<https://en.wikipedia.org/wiki/Naive_Bayes_classifier#Sex_classification>`_.
+<https://en.wikipedia.org/wiki/Naive_Bayes_classifier#Person_classification>`_.
 The challenge is to predict a person's gender from measurements of normally
 distributed features including height, weight, and foot size.
 

@@ -356,6 +356,24 @@ class AST_Tests(unittest.TestCase):
         self.assertEqual(alias.col_offset, 16)
         self.assertEqual(alias.end_col_offset, 17)
 
+        im = ast.parse("from bar import y as z").body[0]
+        alias = im.names[0]
+        self.assertEqual(alias.name, "y")
+        self.assertEqual(alias.asname, "z")
+        self.assertEqual(alias.lineno, 1)
+        self.assertEqual(alias.end_lineno, 1)
+        self.assertEqual(alias.col_offset, 16)
+        self.assertEqual(alias.end_col_offset, 22)
+
+        im = ast.parse("import bar as foo").body[0]
+        alias = im.names[0]
+        self.assertEqual(alias.name, "bar")
+        self.assertEqual(alias.asname, "foo")
+        self.assertEqual(alias.lineno, 1)
+        self.assertEqual(alias.end_lineno, 1)
+        self.assertEqual(alias.col_offset, 7)
+        self.assertEqual(alias.end_col_offset, 17)
+
     def test_base_classes(self):
         self.assertTrue(issubclass(ast.For, ast.stmt))
         self.assertTrue(issubclass(ast.Name, ast.expr))
@@ -687,10 +705,38 @@ class AST_Tests(unittest.TestCase):
         expressions[0] = f"expr = {ast.expr.__subclasses__()[0].__doc__}"
         self.assertCountEqual(ast.expr.__doc__.split("\n"), expressions)
 
-    def test_issue40614_feature_version(self):
+    def test_positional_only_feature_version(self):
+        ast.parse('def foo(x, /): ...', feature_version=(3, 8))
+        ast.parse('def bar(x=1, /): ...', feature_version=(3, 8))
+        with self.assertRaises(SyntaxError):
+            ast.parse('def foo(x, /): ...', feature_version=(3, 7))
+        with self.assertRaises(SyntaxError):
+            ast.parse('def bar(x=1, /): ...', feature_version=(3, 7))
+
+        ast.parse('lambda x, /: ...', feature_version=(3, 8))
+        ast.parse('lambda x=1, /: ...', feature_version=(3, 8))
+        with self.assertRaises(SyntaxError):
+            ast.parse('lambda x, /: ...', feature_version=(3, 7))
+        with self.assertRaises(SyntaxError):
+            ast.parse('lambda x=1, /: ...', feature_version=(3, 7))
+
+    def test_parenthesized_with_feature_version(self):
+        ast.parse('with (CtxManager() as example): ...', feature_version=(3, 10))
+        # While advertised as a feature in Python 3.10, this was allowed starting 3.9
+        ast.parse('with (CtxManager() as example): ...', feature_version=(3, 9))
+        with self.assertRaises(SyntaxError):
+            ast.parse('with (CtxManager() as example): ...', feature_version=(3, 8))
+        ast.parse('with CtxManager() as example: ...', feature_version=(3, 8))
+
+    def test_debug_f_string_feature_version(self):
         ast.parse('f"{x=}"', feature_version=(3, 8))
         with self.assertRaises(SyntaxError):
             ast.parse('f"{x=}"', feature_version=(3, 7))
+
+    def test_assignment_expression_feature_version(self):
+        ast.parse('(x := 0)', feature_version=(3, 8))
+        with self.assertRaises(SyntaxError):
+            ast.parse('(x := 0)', feature_version=(3, 7))
 
     def test_constant_as_name(self):
         for constant in "True", "False", "None":
@@ -887,6 +933,18 @@ Module(
         self.assertEqual(ast.increment_lineno(src).lineno, 2)
         self.assertIsNone(ast.increment_lineno(src).end_lineno)
 
+    def test_increment_lineno_on_module(self):
+        src = ast.parse(dedent("""\
+        a = 1
+        b = 2 # type: ignore
+        c = 3
+        d = 4 # type: ignore@tag
+        """), type_comments=True)
+        ast.increment_lineno(src, n=5)
+        self.assertEqual(src.type_ignores[0].lineno, 7)
+        self.assertEqual(src.type_ignores[1].lineno, 9)
+        self.assertEqual(src.type_ignores[1].tag, '@tag')
+
     def test_iter_fields(self):
         node = ast.parse('foo()', mode='eval')
         d = dict(ast.iter_fields(node.body))
@@ -1000,6 +1058,14 @@ Module(
         self.assertRaises(ValueError, ast.literal_eval, '+True')
         self.assertRaises(ValueError, ast.literal_eval, '2+3')
 
+    def test_literal_eval_str_int_limit(self):
+        with support.adjust_int_max_str_digits(4000):
+            ast.literal_eval('3'*4000)  # no error
+            with self.assertRaises(SyntaxError) as err_ctx:
+                ast.literal_eval('3'*4001)
+            self.assertIn('Exceeds the limit ', str(err_ctx.exception))
+            self.assertIn(' Consider hexadecimal ', str(err_ctx.exception))
+
     def test_literal_eval_complex(self):
         # Issue #4907
         self.assertEqual(ast.literal_eval('6j'), 6j)
@@ -1046,8 +1112,7 @@ Module(
             ast.literal_eval(node)
 
     def test_literal_eval_syntax_errors(self):
-        msg = "unexpected character after line continuation character"
-        with self.assertRaisesRegex(SyntaxError, msg):
+        with self.assertRaisesRegex(SyntaxError, "unexpected indent"):
             ast.literal_eval(r'''
                 \
                 (\

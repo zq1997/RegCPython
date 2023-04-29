@@ -1,5 +1,5 @@
-This is Python version 3.10.1
-=============================
+This is Python version 3.10.11
+==============================
 
 .. image:: https://travis-ci.com/python/cpython.svg?branch=master
    :alt: CPython build status on Travis CI
@@ -18,7 +18,7 @@ This is Python version 3.10.1
    :target: https://discuss.python.org/
 
 
-Copyright (c) 2001-2021 Python Software Foundation.  All rights reserved.
+Copyright © 2001-2023 Python Software Foundation.  All rights reserved.
 
 See the end of this file for further copyright and license information.
 
@@ -204,7 +204,7 @@ script) you must take care that your primary python executable is not
 overwritten by the installation of a different version.  All files and
 directories installed using ``make altinstall`` contain the major and minor
 version and can thus live side-by-side.  ``make install`` also creates
-``${prefix}/bin/python3`` which refers to ``${prefix}/bin/pythonX.Y``.  If you
+``${prefix}/bin/python3`` which refers to ``${prefix}/bin/python3.X``.  If you
 intend to install multiple versions using the same prefix you must decide which
 version (if any) is your "primary" version.  Install that version using ``make
 install``.  Install all other versions using ``make altinstall``.
@@ -247,14 +247,14 @@ See :pep:`619` for Python 3.10 release details.
 Copyright and License Information
 ---------------------------------
 
-Copyright (c) 2001-2021 Python Software Foundation.  All rights reserved.
+Copyright © 2001-2023 Python Software Foundation.  All rights reserved.
 
-Copyright (c) 2000 BeOpen.com.  All rights reserved.
+Copyright © 2000 BeOpen.com.  All rights reserved.
 
-Copyright (c) 1995-2001 Corporation for National Research Initiatives.  All
+Copyright © 1995-2001 Corporation for National Research Initiatives.  All
 rights reserved.
 
-Copyright (c) 1991-1995 Stichting Mathematisch Centrum.  All rights reserved.
+Copyright © 1991-1995 Stichting Mathematisch Centrum.  All rights reserved.
 
 See the `LICENSE <https://github.com/python/cpython/blob/master/LICENSE>`_ for
 information on the history of this software, terms & conditions for usage, and a

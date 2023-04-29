@@ -519,7 +519,6 @@ class PyBuildExt(build_ext):
 
         if self.missing:
             print()
-            print("Python build finished successfully!")
             print("The necessary bits to build these optional modules were not "
                   "found:")
             print_three_column(self.missing)
@@ -757,7 +756,9 @@ class PyBuildExt(build_ext):
         tmpfile = os.path.join(self.build_temp, 'ccpaths')
         if not os.path.exists(self.build_temp):
             os.makedirs(self.build_temp)
-        ret = run_command('%s -E -v - </dev/null 2>%s 1>/dev/null' % (CC, tmpfile))
+        # bpo-38472: With a German locale, GCC returns "gcc-Version 9.1.0
+        # (GCC)", whereas it returns "gcc version 9.1.0" with the C locale.
+        ret = run_command('LC_ALL=C %s -E -v - </dev/null 2>%s 1>/dev/null' % (CC, tmpfile))
         is_gcc = False
         is_clang = False
         in_incdirs = False
@@ -1041,6 +1042,9 @@ class PyBuildExt(build_ext):
         # Python C API test module
         self.add(Extension('_testcapi', ['_testcapimodule.c'],
                            depends=['testcapi_long.h']))
+
+        # Python Argument Clinc functional test module
+        self.add(Extension('_testclinic', ['_testclinic.c']))
 
         # Python Internal C API test module
         self.add(Extension('_testinternalcapi', ['_testinternalcapi.c'],
@@ -1662,6 +1666,9 @@ class PyBuildExt(build_ext):
         # Platform-specific libraries
         if HOST_PLATFORM.startswith(('linux', 'freebsd', 'gnukfreebsd')):
             self.add(Extension('ossaudiodev', ['ossaudiodev.c']))
+        elif HOST_PLATFORM.startswith(('netbsd')):
+            self.add(Extension('ossaudiodev', ['ossaudiodev.c'],
+                               libraries=["ossaudio"]))
         elif not AIX:
             self.missing.append('ossaudiodev')
 

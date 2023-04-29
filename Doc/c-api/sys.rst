@@ -105,7 +105,7 @@ Operating System Utilities
 
    Return the current signal handler for signal *i*.  This is a thin wrapper around
    either :c:func:`sigaction` or :c:func:`signal`.  Do not call those functions
-   directly! :c:type:`PyOS_sighandler_t` is a typedef alias for :c:type:`void
+   directly! :c:type:`PyOS_sighandler_t` is a typedef alias for :c:expr:`void
    (\*)(int)`.
 
 
@@ -114,7 +114,7 @@ Operating System Utilities
    Set the signal handler for signal *i* to be *h*; return the old signal handler.
    This is a thin wrapper around either :c:func:`sigaction` or :c:func:`signal`.  Do
    not call those functions directly!  :c:type:`PyOS_sighandler_t` is a typedef
-   alias for :c:type:`void (\*)(int)`.
+   alias for :c:expr:`void (\*)(int)`.
 
 .. c:function:: wchar_t* Py_DecodeLocale(const char* arg, size_t *size)
 
@@ -177,7 +177,7 @@ Operating System Utilities
 
    Return a pointer to a newly allocated byte string, use :c:func:`PyMem_Free`
    to free the memory. Return ``NULL`` on encoding error or memory allocation
-   error
+   error.
 
    If error_pos is not ``NULL``, ``*error_pos`` is set to ``(size_t)-1`` on
    success,  or set to the index of the invalid character on encoding error.
@@ -207,7 +207,7 @@ Operating System Utilities
 
    .. versionchanged:: 3.8
       The function now uses the UTF-8 encoding on Windows if
-      :c:data:`Py_LegacyWindowsFSEncodingFlag` is zero;
+      :c:data:`Py_LegacyWindowsFSEncodingFlag` is zero.
 
 
 .. _systemfunctions:
@@ -323,7 +323,7 @@ accessible to C code.  They all work with the current interpreter thread's
    leaks.)
 
    Note that ``#`` format characters should always be treated as
-   ``Py_ssize_t``, regardless of whether ``PY_SSIZE_T_CLEAN`` was defined.
+   :c:type:`Py_ssize_t`, regardless of whether ``PY_SSIZE_T_CLEAN`` was defined.
 
    :func:`sys.audit` performs the same function from Python code.
 
@@ -331,14 +331,14 @@ accessible to C code.  They all work with the current interpreter thread's
 
    .. versionchanged:: 3.8.2
 
-      Require ``Py_ssize_t`` for ``#`` format characters. Previously, an
+      Require :c:type:`Py_ssize_t` for ``#`` format characters. Previously, an
       unavoidable deprecation warning was raised.
 
 
 .. c:function:: int PySys_AddAuditHook(Py_AuditHookFunction hook, void *userData)
 
    Append the callable *hook* to the list of active auditing hooks.
-   Return zero for success
+   Return zero on success
    and non-zero on failure. If the runtime has been initialized, also set an
    error on failure. Hooks added through this API are called for all
    interpreters created by the runtime.
@@ -352,7 +352,7 @@ accessible to C code.  They all work with the current interpreter thread's
    silently abort the operation by raising an error subclassed from
    :class:`Exception` (other errors will not be silenced).
 
-   The hook function is of type :c:type:`int (*)(const char *event, PyObject
+   The hook function is of type :c:expr:`int (*)(const char *event, PyObject
    *args, void *userData)`, where *args* is guaranteed to be a
    :c:type:`PyTupleObject`. The hook function is always called with the GIL
    held by the Python interpreter that raised the event.

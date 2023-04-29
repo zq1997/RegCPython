@@ -499,7 +499,9 @@
     <ClCompile Include="$(zlibDir)\adler32.c" />
     <ClCompile Include="$(zlibDir)\compress.c" />
     <ClCompile Include="$(zlibDir)\crc32.c" />
-    <ClCompile Include="$(zlibDir)\deflate.c" />
+    <ClCompile Include="$(zlibDir)\deflate.c">
+      <DisableSpecificWarnings>4244</DisableSpecificWarnings>
+    </ClCompile>
     <ClCompile Include="$(zlibDir)\infback.c" />
     <ClCompile Include="$(zlibDir)\inffast.c" />
     <ClCompile Include="$(zlibDir)\inflate.c" />
@@ -542,7 +544,7 @@
       </ClCompile>
     </ItemGroup>
   </Target>
-  <Target Name="_WarnAboutToolset" BeforeTargets="PrepareForBuild" Condition="$(PlatformToolset) != 'v140' and $(PlatformToolset) != 'v141' and $(PlatformToolset) != 'v142'">
+  <Target Name="_WarnAboutToolset" BeforeTargets="PrepareForBuild" Condition="$(PlatformToolset) != 'v140' and $(PlatformToolset) != 'v141' and $(PlatformToolset) != 'v142' and $(PlatformToolset) != 'v143'">
     <Warning Text="Toolset $(PlatformToolset) is not used for official builds. Your build may have errors or incompatibilities." />
   </Target>
   <Target Name="_WarnAboutZlib" BeforeTargets="PrepareForBuild" Condition="!$(IncludeExternals)">

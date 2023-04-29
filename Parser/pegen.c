@@ -1,5 +1,6 @@
 #include <Python.h>
 #include "pycore_ast.h"           // _PyAST_Validate(),
+#include "pycore_pystate.h"       // _PyThreadState_GET()
 #include <errcode.h>
 #include "tokenizer.h"
 
@@ -435,10 +436,23 @@ get_error_line(Parser *p, Py_ssize_t lineno)
     assert((p->tok->fp == NULL && p->tok->str != NULL) || p->tok->fp == stdin);
 
     char *cur_line = p->tok->fp_interactive ? p->tok->interactive_src_start : p->tok->str;
-    assert(cur_line != NULL);
+    if (cur_line == NULL) {
+        assert(p->tok->fp_interactive);
+        // We can reach this point if the tokenizer buffers for interactive source have not been
+        // initialized because we failed to decode the original source with the given locale.
+        return PyUnicode_FromStringAndSize("", 0);
+    }
+    const char* buf_end = p->tok->fp_interactive ? p->tok->interactive_src_end : p->tok->inp;
 
-    for (int i = 0; i < lineno - 1; i++) {
-        cur_line = strchr(cur_line, '\n') + 1;
+    Py_ssize_t relative_lineno = p->starting_lineno ? lineno - p->starting_lineno + 1 : lineno;
+
+    for (int i = 0; i < relative_lineno - 1; i++) {
+        char *new_line = strchr(cur_line, '\n');
+        assert(new_line != NULL && new_line + 1 < buf_end);
+        if (new_line == NULL || new_line + 1 > buf_end) {
+            break;
+        }
+        cur_line = new_line + 1;
     }
 
     char *next_newline;
@@ -487,7 +501,7 @@ _PyPegen_raise_error_known_location(Parser *p, PyObject *errtype,
         goto error;
     }
 
-    if (p->tok->fp_interactive) {
+    if (p->tok->fp_interactive && p->tok->interactive_src_start != NULL) {
         error_line = get_error_line(p, lineno);
     }
     else if (p->start_rule == Py_file_input) {
@@ -534,7 +548,7 @@ _PyPegen_raise_error_known_location(Parser *p, PyObject *errtype,
                          byte_offset_to_character_offset(error_line, end_col_offset) :
                          end_col_number;
     }
-    tmp = Py_BuildValue("(OiiNii)", p->tok->filename, lineno, col_number, error_line, end_lineno, end_col_number);
+    tmp = Py_BuildValue("(OnnNnn)", p->tok->filename, lineno, col_number, error_line, end_lineno, end_col_number);
     if (!tmp) {
         goto error;
     }
@@ -701,10 +715,10 @@ initialize_token(Parser *p, Token *token, const char *start, const char *end, in
     int col_offset = (start != NULL && start >= line_start) ? (int)(start - line_start) : -1;
     int end_col_offset = (end != NULL && end >= p->tok->line_start) ? (int)(end - p->tok->line_start) : -1;
 
-    token->lineno = p->starting_lineno + lineno;
-    token->col_offset = p->tok->lineno == 1 ? p->starting_col_offset + col_offset : col_offset;
-    token->end_lineno = p->starting_lineno + end_lineno;
-    token->end_col_offset = p->tok->lineno == 1 ? p->starting_col_offset + end_col_offset : end_col_offset;
+    token->lineno = lineno;
+    token->col_offset = p->tok->lineno == p->starting_lineno ? p->starting_col_offset + col_offset : col_offset;
+    token->end_lineno = end_lineno;
+    token->end_col_offset = p->tok->lineno == p->starting_lineno ? p->starting_col_offset + end_col_offset : end_col_offset;
 
     p->fill += 1;
 
@@ -795,7 +809,7 @@ _PyPegen_fill_token(Parser *p)
 static long memo_statistics[NSTATISTICS];
 
 void
-_PyPegen_clear_memo_statistics()
+_PyPegen_clear_memo_statistics(void)
 {
     for (int i = 0; i < NSTATISTICS; i++) {
         memo_statistics[i] = 0;
@@ -803,7 +817,7 @@ _PyPegen_clear_memo_statistics()
 }
 
 PyObject *
-_PyPegen_get_memo_statistics()
+_PyPegen_get_memo_statistics(void)
 {
     PyObject *ret = PyList_New(NSTATISTICS);
     if (ret == NULL) {
@@ -1118,6 +1132,28 @@ _PyPegen_number_token(Parser *p)
 
     if (c == NULL) {
         p->error_indicator = 1;
+        PyThreadState *tstate = _PyThreadState_GET();
+        // The only way a ValueError should happen in _this_ code is via
+        // PyLong_FromString hitting a length limit.
+        if (tstate->curexc_type == PyExc_ValueError &&
+            tstate->curexc_value != NULL) {
+            PyObject *type, *value, *tb;
+            // This acts as PyErr_Clear() as we're replacing curexc.
+            PyErr_Fetch(&type, &value, &tb);
+            Py_XDECREF(tb);
+            Py_DECREF(type);
+            /* Intentionally omitting columns to avoid a wall of 1000s of '^'s
+             * on the error message. Nobody is going to overlook their huge
+             * numeric literal once given the line. */
+            RAISE_ERROR_KNOWN_LOCATION(
+                p, PyExc_SyntaxError,
+                t->lineno, -1 /* col_offset */,
+                t->end_lineno, -1 /* end_col_offset */,
+                "%S - Consider hexadecimal for huge integer literals "
+                "to avoid decimal conversion limits.",
+                value);
+            Py_DECREF(value);
+        }
         return NULL;
     }
 
@@ -1131,31 +1167,13 @@ _PyPegen_number_token(Parser *p)
                            t->end_col_offset, p->arena);
 }
 
-static int // bool
-newline_in_string(Parser *p, const char *cur)
-{
-    for (const char *c = cur; c >= p->tok->buf; c--) {
-        if (*c == '\'' || *c == '"') {
-            return 1;
-        }
-    }
-    return 0;
-}
-
 /* Check that the source for a single input statement really is a single
    statement by looking at what is left in the buffer after parsing.
    Trailing whitespace and comments are OK. */
 static int // bool
 bad_single_statement(Parser *p)
 {
-    const char *cur = strchr(p->tok->buf, '\n');
-
-    /* Newlines are allowed if preceded by a line continuation character
-       or if they appear inside a string. */
-    if (!cur || (cur != p->tok->buf && *(cur - 1) == '\\')
-             || newline_in_string(p, cur)) {
-        return 0;
-    }
+    char *cur = p->tok->cur;
     char c = *cur;
 
     for (;;) {
@@ -1212,6 +1230,9 @@ compute_parser_flags(PyCompilerFlags *flags)
     if ((flags->cf_flags & PyCF_ONLY_AST) && flags->cf_feature_version < 7) {
         parser_flags |= PyPARSE_ASYNC_HACKS;
     }
+    if (flags->cf_flags & PyCF_ALLOW_INCOMPLETE_INPUT) {
+        parser_flags |= PyPARSE_ALLOW_INCOMPLETE_INPUT;
+    }
     return parser_flags;
 }
 
@@ -1236,7 +1257,7 @@ _PyPegen_Parser_New(struct tok_state *tok, int start_rule, int flags,
         return (Parser *) PyErr_NoMemory();
     }
     p->tokens[0] = PyMem_Calloc(1, sizeof(Token));
-    if (!p->tokens) {
+    if (!p->tokens[0]) {
         PyMem_Free(p->tokens);
         PyMem_Free(p);
         return (Parser *) PyErr_NoMemory();
@@ -1266,7 +1287,6 @@ _PyPegen_Parser_New(struct tok_state *tok, int start_rule, int flags,
     p->known_err_token = NULL;
     p->level = 0;
     p->call_invalid_rules = 0;
-    p->in_raw_rule = 0;
     return p;
 }
 
@@ -1308,6 +1328,10 @@ _PyPegen_check_tokenizer_errors(Parser *p) {
         const char *end;
         switch (PyTokenizer_Get(p->tok, &start, &end)) {
             case ERRORTOKEN:
+                if (PyErr_Occurred()) {
+                    ret = -1;
+                    goto exit;
+                }
                 if (p->tok->level != 0) {
                     int error_lineno = p->tok->parenlinenostack[p->tok->level-1];
                     if (current_err_line > error_lineno) {
@@ -1337,21 +1361,37 @@ exit:
     return ret;
 }
 
+
+static inline int
+_is_end_of_source(Parser *p) {
+    int err = p->tok->done;
+    return err == E_EOF || err == E_EOFS || err == E_EOLS;
+}
+
 void *
 _PyPegen_run_parser(Parser *p)
 {
     void *res = _PyPegen_parse(p);
+    assert(p->level == 0);
     if (res == NULL) {
+        if ((p->flags & PyPARSE_ALLOW_INCOMPLETE_INPUT) &&  _is_end_of_source(p)) {
+            PyErr_Clear();
+            return RAISE_SYNTAX_ERROR("incomplete input");
+        }
         if (PyErr_Occurred() && !PyErr_ExceptionMatches(PyExc_SyntaxError)) {
             return NULL;
         }
+        // Make a second parser pass. In this pass we activate heavier and slower checks
+        // to produce better error messages and more complete diagnostics. Extra "invalid_*"
+        // rules will be active during parsing.
         Token *last_token = p->tokens[p->fill - 1];
         reset_parser_state(p);
         _PyPegen_parse(p);
         if (PyErr_Occurred()) {
             // Prioritize tokenizer errors to custom syntax errors raised
             // on the second phase only if the errors come from the parser.
-            if (p->tok->done == E_DONE && PyErr_ExceptionMatches(PyExc_SyntaxError)) {
+            int is_tok_ok = (p->tok->done == E_DONE || p->tok->done == E_OK);
+            if (is_tok_ok && PyErr_ExceptionMatches(PyExc_SyntaxError)) {
                 _PyPegen_check_tokenizer_errors(p);
             }
             return NULL;
@@ -2555,7 +2595,7 @@ void *_PyPegen_arguments_parsing_error(Parser *p, expr_ty e) {
 }
 
 
-static inline expr_ty
+expr_ty
 _PyPegen_get_last_comprehension_item(comprehension_ty comprehension) {
     if (comprehension->ifs == NULL || asdl_seq_LEN(comprehension->ifs) == 0) {
         return comprehension->iter;

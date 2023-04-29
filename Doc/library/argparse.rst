@@ -148,14 +148,16 @@ ArgumentParser objects
    as keyword arguments. Each parameter has its own more detailed description
    below, but in short they are:
 
-   * prog_ - The name of the program (default: ``sys.argv[0]``)
+   * prog_ - The name of the program (default:
+     ``os.path.basename(sys.argv[0])``)
 
    * usage_ - The string describing the program usage (default: generated from
      arguments added to parser)
 
-   * description_ - Text to display before the argument help (default: none)
+   * description_ - Text to display before the argument help
+     (by default, no text)
 
-   * epilog_ - Text to display after the argument help (default: none)
+   * epilog_ - Text to display after the argument help (by default, no text)
 
    * parents_ - A list of :class:`ArgumentParser` objects whose arguments should
      also be included
@@ -501,7 +503,7 @@ disallowed.
 fromfile_prefix_chars
 ^^^^^^^^^^^^^^^^^^^^^
 
-Sometimes, for example when dealing with a particularly long argument lists, it
+Sometimes, for example when dealing with a particularly long argument list, it
 may make sense to keep the list of arguments in a file rather than typing it out
 at the command line.  If the ``fromfile_prefix_chars=`` argument is given to the
 :class:`ArgumentParser` constructor, then arguments that start with any of the
@@ -700,7 +702,7 @@ The add_argument() method
 
    * type_ - The type to which the command-line argument should be converted.
 
-   * choices_ - A container of the allowable values for the argument.
+   * choices_ - A sequence of the allowable values for the argument.
 
    * required_ - Whether or not the command-line option may be omitted
      (optionals only).
@@ -1122,7 +1124,7 @@ choices
 ^^^^^^^
 
 Some command-line arguments should be selected from a restricted set of values.
-These can be handled by passing a container object as the *choices* keyword
+These can be handled by passing a sequence object as the *choices* keyword
 argument to :meth:`~ArgumentParser.add_argument`.  When the command line is
 parsed, argument values will be checked, and an error message will be displayed
 if the argument was not one of the acceptable values::
@@ -1136,9 +1138,9 @@ if the argument was not one of the acceptable values::
    game.py: error: argument move: invalid choice: 'fire' (choose from 'rock',
    'paper', 'scissors')
 
-Note that inclusion in the *choices* container is checked after any type_
+Note that inclusion in the *choices* sequence is checked after any type_
 conversions have been performed, so the type of the objects in the *choices*
-container should match the type_ specified::
+sequence should match the type_ specified::
 
    >>> parser = argparse.ArgumentParser(prog='doors.py')
    >>> parser.add_argument('door', type=int, choices=range(1, 4))
@@ -1148,8 +1150,8 @@ container should match the type_ specified::
    usage: doors.py [-h] {1,2,3}
    doors.py: error: argument door: invalid choice: 4 (choose from 1, 2, 3)
 
-Any container can be passed as the *choices* value, so :class:`list` objects,
-:class:`set` objects, and custom containers are all supported.
+Any sequence can be passed as the *choices* value, so :class:`list` objects,
+:class:`tuple` objects, and custom sequences are all supported.
 
 Use of :class:`enum.Enum` is not recommended because it is difficult to
 control its appearance in usage, help, and error messages.
@@ -1614,7 +1616,7 @@ Sub-commands
 
 .. method:: ArgumentParser.add_subparsers([title], [description], [prog], \
                                           [parser_class], [action], \
-                                          [option_string], [dest], [required], \
+                                          [option_strings], [dest], [required], \
                                           [help], [metavar])
 
    Many programs split up their functionality into a number of sub-commands,
@@ -1769,7 +1771,7 @@ Sub-commands
      ...
      >>> # create the top-level parser
      >>> parser = argparse.ArgumentParser()
-     >>> subparsers = parser.add_subparsers()
+     >>> subparsers = parser.add_subparsers(required=True)
      >>>
      >>> # create the parser for the "foo" command
      >>> parser_foo = subparsers.add_parser('foo')
@@ -1830,8 +1832,8 @@ FileType objects
       Namespace(out=<_io.TextIOWrapper name='file.txt' mode='w' encoding='UTF-8'>, raw=<_io.FileIO name='raw.dat' mode='wb'>)
 
    FileType objects understand the pseudo-argument ``'-'`` and automatically
-   convert this into ``sys.stdin`` for readable :class:`FileType` objects and
-   ``sys.stdout`` for writable :class:`FileType` objects::
+   convert this into :data:`sys.stdin` for readable :class:`FileType` objects and
+   :data:`sys.stdout` for writable :class:`FileType` objects::
 
       >>> parser = argparse.ArgumentParser()
       >>> parser.add_argument('infile', type=argparse.FileType('r'))

@@ -64,7 +64,7 @@ static PyStructSequence_Field floatinfo_fields[] = {
     {"min_exp",         "DBL_MIN_EXP -- minimum int e such that radix**(e-1) "
                     "is a normalized float"},
     {"min_10_exp",      "DBL_MIN_10_EXP -- minimum int e such that 10**e is "
-                    "a normalized"},
+                    "a normalized float"},
     {"dig",             "DBL_DIG -- maximum number of decimal digits that "
                     "can be faithfully represented in a float"},
     {"mant_dig",        "DBL_MANT_DIG -- mantissa digits"},
@@ -150,11 +150,18 @@ float_from_string_inner(const char *s, Py_ssize_t len, void *obj)
     double x;
     const char *end;
     const char *last = s + len;
-    /* strip space */
+    /* strip leading whitespace */
     while (s < last && Py_ISSPACE(*s)) {
         s++;
     }
+    if (s == last) {
+        PyErr_Format(PyExc_ValueError,
+                     "could not convert string to float: "
+                     "%R", obj);
+        return NULL;
+    }
 
+    /* strip trailing whitespace */
     while (s < last - 1 && Py_ISSPACE(last[-1])) {
         last--;
     }
@@ -1748,7 +1755,7 @@ float___getformat___impl(PyTypeObject *type, const char *typestr)
 
 /*[clinic input]
 @classmethod
-float.__set_format__
+float.__setformat__
 
     typestr: str
         Must be 'double' or 'float'.
@@ -1767,9 +1774,9 @@ This affects how floats are converted to and from binary strings.
 [clinic start generated code]*/
 
 static PyObject *
-float___set_format___impl(PyTypeObject *type, const char *typestr,
-                          const char *fmt)
-/*[clinic end generated code: output=504460f5dc85acbd input=5306fa2b81a997e4]*/
+float___setformat___impl(PyTypeObject *type, const char *typestr,
+                         const char *fmt)
+/*[clinic end generated code: output=06864de1fb5f1f04 input=c0e9e04dd87f9988]*/
 {
     float_format_type f;
     float_format_type detected;
@@ -1871,7 +1878,7 @@ static PyMethodDef float_methods[] = {
     FLOAT_IS_INTEGER_METHODDEF
     FLOAT___GETNEWARGS___METHODDEF
     FLOAT___GETFORMAT___METHODDEF
-    FLOAT___SET_FORMAT___METHODDEF
+    FLOAT___SETFORMAT___METHODDEF
     FLOAT___FORMAT___METHODDEF
     {NULL,              NULL}           /* sentinel */
 };

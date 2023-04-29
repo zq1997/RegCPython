@@ -40,7 +40,7 @@ Type Objects
 .. c:function:: unsigned long PyType_GetFlags(PyTypeObject* type)
 
    Return the :c:member:`~PyTypeObject.tp_flags` member of *type*. This function is primarily
-   meant for use with `Py_LIMITED_API`; the individual flag bits are
+   meant for use with ``Py_LIMITED_API``; the individual flag bits are
    guaranteed to be stable across Python releases, but access to
    :c:member:`~PyTypeObject.tp_flags` itself is not part of the limited API.
 
@@ -272,7 +272,7 @@ The following functions and structs are used to create
 
      .. versionchanged:: 3.9
 
-        Slots in :c:type:`PyBufferProcs` in may be set in the unlimited API.
+        Slots in :c:type:`PyBufferProcs` may be set in the unlimited API.
 
    .. c:member:: void *PyType_Slot.pfunc
 

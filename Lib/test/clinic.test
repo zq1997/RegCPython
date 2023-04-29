@@ -1740,29 +1740,18 @@ test_str_converter_encoding(PyObject *module, PyObject *const *args, Py_ssize_t 
         goto exit;
     }
     return_value = test_str_converter_encoding_impl(module, a, b, c, d, d_length, e, e_length);
+    /* Post parse cleanup for a */
+    PyMem_FREE(a);
+    /* Post parse cleanup for b */
+    PyMem_FREE(b);
+    /* Post parse cleanup for c */
+    PyMem_FREE(c);
+    /* Post parse cleanup for d */
+    PyMem_FREE(d);
+    /* Post parse cleanup for e */
+    PyMem_FREE(e);
 
 exit:
-    /* Cleanup for a */
-    if (a) {
-       PyMem_FREE(a);
-    }
-    /* Cleanup for b */
-    if (b) {
-       PyMem_FREE(b);
-    }
-    /* Cleanup for c */
-    if (c) {
-       PyMem_FREE(c);
-    }
-    /* Cleanup for d */
-    if (d) {
-       PyMem_FREE(d);
-    }
-    /* Cleanup for e */
-    if (e) {
-       PyMem_FREE(e);
-    }
-
     return return_value;
 }
 
@@ -1770,7 +1759,7 @@ static PyObject *
 test_str_converter_encoding_impl(PyObject *module, char *a, char *b, char *c,
                                  char *d, Py_ssize_clean_t d_length, char *e,
                                  Py_ssize_clean_t e_length)
-/*[clinic end generated code: output=f579dd9e795a364e input=eb4c38e1f898f402]*/
+/*[clinic end generated code: output=2d7e8b6203db31aa input=eb4c38e1f898f402]*/
 
 
 /*[clinic input]
@@ -1805,12 +1794,12 @@ static PyObject *
 test_Py_UNICODE_converter(PyObject *module, PyObject *const *args, Py_ssize_t nargs)
 {
     PyObject *return_value = NULL;
-    const Py_UNICODE *a;
-    const Py_UNICODE *b;
-    const Py_UNICODE *c;
-    const Py_UNICODE *d;
+    const Py_UNICODE *a = NULL;
+    const Py_UNICODE *b = NULL;
+    const Py_UNICODE *c = NULL;
+    const Py_UNICODE *d = NULL;
     Py_ssize_clean_t d_length;
-    const Py_UNICODE *e;
+    const Py_UNICODE *e = NULL;
     Py_ssize_clean_t e_length;
 
     if (!_PyArg_ParseStack(args, nargs, "O&O&O&u#Z#:test_Py_UNICODE_converter",
@@ -1843,7 +1832,7 @@ test_Py_UNICODE_converter_impl(PyObject *module, const Py_UNICODE *a,
                                Py_ssize_clean_t d_length,
                                const Py_UNICODE *e,
                                Py_ssize_clean_t e_length)
-/*[clinic end generated code: output=ef45e982fedf0b3d input=064a3b68ad7f04b0]*/
+/*[clinic end generated code: output=e45007c49e77ad4a input=064a3b68ad7f04b0]*/
 
 
 /*[clinic input]
@@ -3308,3 +3297,44 @@ test_preprocessor_guarded_else(PyObject *module, PyObject *Py_UNUSED(ignored))
     #define TEST_PREPROCESSOR_GUARDED_ELSE_METHODDEF
 #endif /* !defined(TEST_PREPROCESSOR_GUARDED_ELSE_METHODDEF) */
 /*[clinic end generated code: output=3804bb18d454038c input=3fc80c9989d2f2e1]*/
+
+/*[clinic input]
+test_paramname_module
+
+    module as mod: object
+[clinic start generated code]*/
+
+PyDoc_STRVAR(test_paramname_module__doc__,
+"test_paramname_module($module, /, module)\n"
+"--\n"
+"\n");
+
+#define TEST_PARAMNAME_MODULE_METHODDEF    \
+    {"test_paramname_module", (PyCFunction)(void(*)(void))test_paramname_module, METH_FASTCALL|METH_KEYWORDS, test_paramname_module__doc__},
+
+static PyObject *
+test_paramname_module_impl(PyObject *module, PyObject *mod);
+
+static PyObject *
+test_paramname_module(PyObject *module, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *return_value = NULL;
+    static const char * const _keywords[] = {"module", NULL};
+    static _PyArg_Parser _parser = {NULL, _keywords, "test_paramname_module", 0};
+    PyObject *argsbuf[1];
+    PyObject *mod;
+
+    args = _PyArg_UnpackKeywords(args, nargs, NULL, kwnames, &_parser, 1, 1, 0, argsbuf);
+    if (!args) {
+        goto exit;
+    }
+    mod = args[0];
+    return_value = test_paramname_module_impl(module, mod);
+
+exit:
+    return return_value;
+}
+
+static PyObject *
+test_paramname_module_impl(PyObject *module, PyObject *mod)
+/*[clinic end generated code: output=2a6769d34d1b2be0 input=afefe259667f13ba]*/

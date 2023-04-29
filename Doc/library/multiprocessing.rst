@@ -43,6 +43,16 @@ will print to standard output ::
    [1, 4, 9]
 
 
+.. seealso::
+
+   :class:`concurrent.futures.ProcessPoolExecutor` offers a higher level interface
+   to push tasks to a background process without blocking execution of the
+   calling process. Compared to using the :class:`~multiprocessing.pool.Pool`
+   interface directly, the :mod:`concurrent.futures` API more readily allows
+   the submission of work to the underlying process pool to be separated from
+   waiting for the results.
+
+
 The :class:`Process` class
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -96,7 +106,7 @@ Depending on the platform, :mod:`multiprocessing` supports three ways
 to start a process.  These *start methods* are
 
   *spawn*
-    The parent process starts a fresh python interpreter process.  The
+    The parent process starts a fresh Python interpreter process.  The
     child process will only inherit those resources necessary to run
     the process object's :meth:`~Process.run` method.  In particular,
     unnecessary file descriptors and handles from the parent process
@@ -132,8 +142,8 @@ to start a process.  These *start methods* are
    subprocess. See :issue:`33725`.
 
 .. versionchanged:: 3.4
-   *spawn* added on all unix platforms, and *forkserver* added for
-   some unix platforms.
+   *spawn* added on all Unix platforms, and *forkserver* added for
+   some Unix platforms.
    Child processes no longer inherit all of the parents inheritable
    handles on Windows.
 
@@ -569,8 +579,15 @@ The :mod:`multiprocessing` package mostly replicates the API of the
    .. attribute:: exitcode
 
       The child's exit code.  This will be ``None`` if the process has not yet
-      terminated.  A negative value *-N* indicates that the child was terminated
-      by signal *N*.
+      terminated.
+
+      If the child's :meth:`run` method returned normally, the exit code
+      will be 0.  If it terminated via :func:`sys.exit` with an integer
+      argument *N*, the exit code will be *N*.
+
+      If the child terminated due to an exception not caught within
+      :meth:`run`, the exit code will be 1.  If it was terminated by
+      signal *N*, the exit code will be the negative value *-N*.
 
    .. attribute:: authkey
 
@@ -640,7 +657,6 @@ The :mod:`multiprocessing` package mostly replicates the API of the
    Example usage of some of the methods of :class:`Process`:
 
    .. doctest::
-      :options: +ELLIPSIS
 
        >>> import multiprocessing, time, signal
        >>> p = multiprocessing.Process(target=time.sleep, args=(1000,))
@@ -1040,9 +1056,9 @@ Miscellaneous
 
    .. versionadded:: 3.4
 
-.. function:: set_executable()
+.. function:: set_executable(executable)
 
-   Sets the path of the Python interpreter to use when starting a child process.
+   Set the path of the Python interpreter to use when starting a child process.
    (By default :data:`sys.executable` is used).  Embedders will probably need to
    do some thing like ::
 
@@ -1641,6 +1657,7 @@ different machines. A manager object controls a server process which manages
 proxies.
 
 .. function:: multiprocessing.Manager()
+   :module:
 
    Returns a started :class:`~multiprocessing.managers.SyncManager` object which
    can be used for sharing objects between processes.  The returned manager
@@ -2250,8 +2267,9 @@ with the :class:`Pool` class.
 
    .. method:: starmap(func, iterable[, chunksize])
 
-      Like :meth:`map` except that the elements of the *iterable* are expected
-      to be iterables that are unpacked as arguments.
+      Like :meth:`~multiprocessing.pool.Pool.map` except that the
+      elements of the *iterable* are expected to be iterables that are
+      unpacked as arguments.
 
       Hence an *iterable* of ``[(1,2), (3, 4)]`` results in ``[func(1,2),
       func(3,4)]``.
@@ -2577,9 +2595,9 @@ Address Formats
   filesystem.
 
 * An ``'AF_PIPE'`` address is a string of the form
-  :samp:`r'\\\\.\\pipe\\{PipeName}'`.  To use :func:`Client` to connect to a named
+  :samp:`r'\\\\\\.\\pipe\\\\{PipeName}'`.  To use :func:`Client` to connect to a named
   pipe on a remote computer called *ServerName* one should use an address of the
-  form :samp:`r'\\\\{ServerName}\\pipe\\{PipeName}'` instead.
+  form :samp:`r'\\\\\\\\{ServerName}\\pipe\\\\{PipeName}'` instead.
 
 Note that any string beginning with two backslashes is assumed by default to be
 an ``'AF_PIPE'`` address rather than an ``'AF_UNIX'`` address.
@@ -2901,6 +2919,8 @@ Global variables
 
     However, global variables which are just module level constants cause no
     problems.
+
+.. _multiprocessing-safe-main-import:
 
 Safe importing of main module
 

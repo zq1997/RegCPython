@@ -3,6 +3,7 @@
 """
 import os
 import sys
+import webbrowser
 from platform import python_version, architecture
 
 from tkinter import Toplevel, Frame, Label, Button, PhotoImage
@@ -90,10 +91,12 @@ class AboutDialog(Toplevel):
         email = Label(frame_background, text='email:  idle-dev@python.org',
                       justify=LEFT, fg=self.fg, bg=self.bg)
         email.grid(row=6, column=0, columnspan=2, sticky=W, padx=10, pady=0)
-        docs = Label(frame_background, text="https://docs.python.org/"
-                     f"{version[:version.rindex('.')]}/library/idle.html",
+        docs_url = ("https://docs.python.org/%d.%d/library/idle.html" %
+                    sys.version_info[:2])
+        docs = Label(frame_background, text=docs_url,
                      justify=LEFT, fg=self.fg, bg=self.bg)
         docs.grid(row=7, column=0, columnspan=2, sticky=W, padx=10, pady=0)
+        docs.bind("<Button-1>", lambda event: webbrowser.open(docs['text']))
 
         Frame(frame_background, borderwidth=1, relief=SUNKEN,
               height=2, bg=self.bg).grid(row=8, column=0, sticky=EW,

@@ -66,6 +66,8 @@ Functions and classes provided:
               # Code to release resource, e.g.:
               release_resource(resource)
 
+   The function can then be used like this::
+
       >>> with managed_resource(timeout=3600) as resource:
       ...     # Resource is released at the end of this block,
       ...     # even if code in the block raises an exception
@@ -140,9 +142,9 @@ Functions and classes provided:
          finally:
              print(f'it took {time.monotonic() - now}s to run')
 
-      @timeit()
-      async def main():
-          # ... async code ...
+     @timeit()
+     async def main():
+         # ... async code ...
 
    When used as a decorator, a new generator instance is implicitly created on
    each function call. This allows the otherwise "one-shot" context managers
@@ -181,7 +183,7 @@ Functions and classes provided:
    ``page.close()`` will be called when the :keyword:`with` block is exited.
 
 
-.. class:: aclosing(thing)
+.. function:: aclosing(thing)
 
    Return an async context manager that calls the ``aclose()`` method of *thing*
    upon completion of the block.  This is basically equivalent to::
@@ -249,15 +251,15 @@ Functions and classes provided:
    :ref:`asynchronous context managers <async-context-managers>`::
 
        async def send_http(session=None):
-          if not session:
-              # If no http session, create it with aiohttp
-              cm = aiohttp.ClientSession()
-          else:
-              # Caller is responsible for closing the session
-              cm = nullcontext(session)
+           if not session:
+               # If no http session, create it with aiohttp
+               cm = aiohttp.ClientSession()
+           else:
+               # Caller is responsible for closing the session
+               cm = nullcontext(session)
 
-          async with cm as session:
-              # Send http requests with session
+           async with cm as session:
+               # Send http requests with session
 
    .. versionadded:: 3.7
 
@@ -379,6 +381,8 @@ Functions and classes provided:
               print('Finishing')
               return False
 
+   The class can then be used like this::
+
       >>> @mycontext()
       ... def function():
       ...     print('The bit in the middle')
@@ -449,6 +453,8 @@ Functions and classes provided:
               print('Finishing')
               return False
 
+   The class can then be used like this::
+
       >>> @mycontext()
       ... async def function():
       ...     print('The bit in the middle')
@@ -484,6 +490,9 @@ Functions and classes provided:
           # All opened files will automatically be closed at the end of
           # the with statement, even if attempts to open files later
           # in the list raise an exception
+
+   The :meth:`__enter__` method returns the :class:`ExitStack` instance, and
+   performs no additional operations.
 
    Each instance maintains a stack of registered callbacks that are called in
    reverse order when the instance is closed (either explicitly or implicitly

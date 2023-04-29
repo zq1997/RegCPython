@@ -76,7 +76,7 @@ another rational number, or from a string.
 
    The :class:`Fraction` class inherits from the abstract base class
    :class:`numbers.Rational`, and implements all of the methods and
-   operations from that class.  :class:`Fraction` instances are hashable,
+   operations from that class.  :class:`Fraction` instances are :term:`hashable`,
    and should be treated as immutable.  In addition,
    :class:`Fraction` has the following properties and methods:
 
@@ -105,10 +105,10 @@ another rational number, or from a string.
 
       .. versionadded:: 3.8
 
-   .. method:: from_float(flt)
+   .. classmethod:: from_float(flt)
 
-      This class method constructs a :class:`Fraction` representing the exact
-      value of *flt*, which must be a :class:`float`. Beware that
+      Alternative constructor which only accepts instances of
+      :class:`float` or :class:`numbers.Integral`. Beware that
       ``Fraction.from_float(0.3)`` is not the same value as ``Fraction(3, 10)``.
 
       .. note::
@@ -117,10 +117,10 @@ another rational number, or from a string.
          :class:`Fraction` instance directly from a :class:`float`.
 
 
-   .. method:: from_decimal(dec)
+   .. classmethod:: from_decimal(dec)
 
-      This class method constructs a :class:`Fraction` representing the exact
-      value of *dec*, which must be a :class:`decimal.Decimal` instance.
+      Alternative constructor which only accepts instances of
+      :class:`decimal.Decimal` or :class:`numbers.Integral`.
 
       .. note::
 

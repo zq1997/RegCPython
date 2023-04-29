@@ -3424,7 +3424,7 @@ compiler_async_for(struct compiler *c, stmt_ty s) {
     CHECK(compiler_push_fblock(c, &fb_loop));
     CHECK(compiler_visit_stmts(c, s->v.AsyncFor.body));
     compiler_pop_fblock(c);
-    CHECK(addop_jump(c, JUMP_ALWAYS, UNSED_OPARG, NEG_ADDR_OPARG, b_iter, b_except));
+    CHECK(addop_jump_noline(c, JUMP_ALWAYS, UNSED_OPARG, NEG_ADDR_OPARG, b_iter, b_except));
 
     /* Use same line number as the iterator,
      * as the END_ASYNC_FOR succeeds the `for`, not the body. */
@@ -3469,6 +3469,7 @@ compiler_while(struct compiler *c, stmt_ty s) {
 
 static int
 compiler_continue_break(struct compiler *c, bool is_break) {
+    int origin_loc = c->u->u_lineno;
     for (struct fblockinfo *fb = c->u->u_fblocks; fb; fb = fb->fb_prev) {
         if (fb->fb_type == FB_FINALLY) {
             basicblock *b_next = compiler_new_block(c);
@@ -3481,7 +3482,8 @@ compiler_continue_break(struct compiler *c, bool is_break) {
             return addop_jump(c, JUMP_ALWAYS, UNSED_OPARG, NEG_ADDR_OPARG, to_block, NULL);
         }
     }
-    return compiler_error(c, "'%s' outside loop", is_break ? "break" : "continue");
+    c->u->u_lineno = origin_loc;
+    return compiler_error(c, is_break ? "'break' outside loop" : "'continue' not properly in loop");
 }
 
 static int
@@ -4500,9 +4502,16 @@ struct assembler {
 static int
 assemble_emit_linetable_pair(struct assembler *a, int bdelta, int ldelta) {
     Py_ssize_t len = PyBytes_GET_SIZE(a->a_lnotab);
-    if (a->a_lnotab_off + 2 >= len) {
-        if (_PyBytes_Resize(&a->a_lnotab, len * 2) < 0)
+    if (a->a_lnotab_off > INT_MAX - 2) {
+        goto overflow;
+    }
+    if (a->a_lnotab_off >= len - 2) {
+        if (len > INT_MAX / 2) {
+            goto overflow;
+        }
+        if (_PyBytes_Resize(&a->a_lnotab, len * 2) < 0) {
             return 0;
+        }
     }
     unsigned char *lnotab = (unsigned char *) PyBytes_AS_STRING(a->a_lnotab);
     lnotab += a->a_lnotab_off;
@@ -4510,6 +4519,9 @@ assemble_emit_linetable_pair(struct assembler *a, int bdelta, int ldelta) {
     *lnotab++ = bdelta;
     *lnotab++ = ldelta;
     return 1;
+overflow:
+    PyErr_SetString(PyExc_OverflowError, "line number table is too long");
+    return 0;
 }
 
 /* Appends a range to the end of the line number table. See
@@ -5113,12 +5125,6 @@ makecode(struct compiler *c, struct assembler *a) {
     int posorkeywordargcount = Py_SAFE_DOWNCAST(c->u->u_argcount, Py_ssize_t, int);
     int kwonlyargcount = Py_SAFE_DOWNCAST(c->u->u_kwonlyargcount, Py_ssize_t, int);
     int maxdepth = c->u->u_tmp_max;
-    if (maxdepth > MAX_ALLOWED_TMP_USE) {
-        PyErr_Format(PyExc_SystemError,
-                     "excessive stack use: stack is %d deep",
-                     maxdepth);
-        goto error;
-    }
     co = PyCode_NewWithPosOnlyArgs(posonlyargcount + posorkeywordargcount,
                                    posonlyargcount, kwonlyargcount, nlocals_int,
                                    maxdepth, flags, a->a_bytecode, consts, names,

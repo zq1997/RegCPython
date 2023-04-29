@@ -7,7 +7,7 @@ import io
 
 __all__ = ["code_info", "dis", "disassemble", "distb", "disco",
            "findlinestarts", "findlabels", "show_code",
-           "get_instructions", "Instruction", "Bytecode"]
+           "get_instructions", "Instruction", "Bytecode", "opmap"]
 
 _have_code = (types.MethodType, types.FunctionType, types.CodeType,
               classmethod, staticmethod, type)
@@ -15,11 +15,11 @@ _have_code = (types.MethodType, types.FunctionType, types.CodeType,
 try:
     import opcode as opcode_mod
     _opname = ['<%s>' % i if op is None else op for i, op in enumerate(opcode_mod.opname)]
-    _opmap = {op: i for i, op in enumerate(opcode_mod.opname) if op is not None}
+    opmap = {op: i for i, op in enumerate(opcode_mod.opname) if op is not None}
     _OPNAME_WIDTH = max(map(len, _opname))
-    EXTENDED_ARG = _opmap['EXTENDED_ARG']
-    FORMAT_VALUE = _opmap['FORMAT_VALUE']
-    MAKE_FUNCTION = _opmap['MAKE_FUNCTION']
+    EXTENDED_ARG = opmap['EXTENDED_ARG']
+    FORMAT_VALUE = opmap['FORMAT_VALUE']
+    MAKE_FUNCTION = opmap['MAKE_FUNCTION']
 except ImportError:
     pass
 FORMAT_VALUE_CONVERTERS = (

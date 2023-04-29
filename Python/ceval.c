@@ -1490,6 +1490,8 @@ regtrace(PyThreadState *tstate, const char *str, _Py_OPARG i, PyObject *v)
     }
     printf("\n");
     PyErr_Restore(type, value, traceback);
+    // gh-91924: PyObject_Print() can indirectly set lltrace to 0
+    lltrace = 1;
 }
 
 static inline PyObject *
@@ -3793,21 +3795,11 @@ dispatch_opcode:
             DISPATCH();
         END_CASE_OP
 
-        CASE_OP(GEN_START, ARG_YES, ARG_NO, ARG_NO)
+        CASE_OP(GEN_START, ARG_NO, ARG_NO, ARG_NO)
             PyObject *arg = (PyObject *)((PyGenObject *)f->f_gen)->gi_arg;
             ((PyGenObject *)f->f_gen)->gi_arg = NULL;
-            bool arg_is_none = Py_IsNone(arg);
+            assert(arg == Py_None);
             Py_DECREF(arg);
-            if (!arg_is_none) {
-                static const char *gen_kind[2][2] = {
-                        {"<bad>", "generator"},
-                        {"coroutine", "async generator"}
-                };
-                _PyErr_Format(tstate, PyExc_TypeError,
-                              "can't send non-None value to a just-started %s",
-                              gen_kind[(oparg1 & 0b10) >> 1][oparg1 & 1]);
-                goto error;
-            }
             DISPATCH();
         END_CASE_OP
 
@@ -4413,6 +4405,9 @@ positional_only_passed_as_keyword(PyThreadState *tstate, PyCodeObject *co,
 
     int posonly_conflicts = 0;
     PyObject* posonly_names = PyList_New(0);
+    if (posonly_names == NULL) {
+        goto fail;
+    }
 
     for(int k=0; k < co->co_posonlyargcount; k++){
         PyObject* posonly_name = PyTuple_GET_ITEM(co->co_varnames, k);
@@ -4765,7 +4760,7 @@ PyEval_EvalCodeEx(PyObject *_co, PyObject *globals, PyObject *locals,
                   PyObject *kwdefs, PyObject *closure)
 {
     PyThreadState *tstate = _PyThreadState_GET();
-    PyObject *res;
+    PyObject *res = NULL;
     PyObject *defaults = _PyTuple_FromArray(defs, defcount);
     if (defaults == NULL) {
         return NULL;
@@ -4778,23 +4773,19 @@ PyEval_EvalCodeEx(PyObject *_co, PyObject *globals, PyObject *locals,
     if (locals == NULL) {
         locals = globals;
     }
-    PyObject *kwnames;
+    PyObject *kwnames = NULL;
     PyObject *const *allargs;
-    PyObject **newargs;
+    PyObject **newargs = NULL;
     if (kwcount == 0) {
         allargs = args;
-        kwnames = NULL;
     }
     else {
         kwnames = PyTuple_New(kwcount);
         if (kwnames == NULL) {
-            res = NULL;
             goto fail;
         }
         newargs = PyMem_Malloc(sizeof(PyObject *)*(kwcount+argcount));
         if (newargs == NULL) {
-            res = NULL;
-            Py_DECREF(kwnames);
             goto fail;
         }
         for (int i = 0; i < argcount; i++) {
@@ -4807,16 +4798,9 @@ PyEval_EvalCodeEx(PyObject *_co, PyObject *globals, PyObject *locals,
         }
         allargs = newargs;
     }
-    PyObject **kwargs = PyMem_Malloc(sizeof(PyObject *)*kwcount);
-    if (kwargs == NULL) {
-        res = NULL;
-        Py_DECREF(kwnames);
-        goto fail;
-    }
     for (int i = 0; i < kwcount; i++) {
         Py_INCREF(kws[2*i]);
         PyTuple_SET_ITEM(kwnames, i, kws[2*i]);
-        kwargs[i] = kws[2*i+1];
     }
     PyFrameConstructor constr = {
         .fc_globals = globals,
@@ -4831,11 +4815,9 @@ PyEval_EvalCodeEx(PyObject *_co, PyObject *globals, PyObject *locals,
     res = _PyEval_Vector(tstate, &constr, locals,
                          allargs, argcount,
                          kwnames);
-    if (kwcount) {
-        Py_DECREF(kwnames);
-        PyMem_Free(newargs);
-    }
 fail:
+    Py_XDECREF(kwnames);
+    PyMem_Free(newargs);
     Py_DECREF(defaults);
     return res;
 }
@@ -5161,7 +5143,7 @@ maybe_call_line_trace(Py_tracefunc func, PyObject *obj,
         }
     }
     /* Always emit an opcode event if we're tracing all opcodes. */
-    if (frame->f_trace_opcodes) {
+    if (frame->f_trace_opcodes && result == 0) {
         result = call_trace(func, obj, tstate, frame, trace_info, PyTrace_OPCODE, Py_None);
     }
     return result;
@@ -5174,10 +5156,20 @@ _PyEval_SetProfile(PyThreadState *tstate, Py_tracefunc func, PyObject *arg)
     /* The caller must hold the GIL */
     assert(PyGILState_Check());
 
+    static int reentrant = 0;
+    if (reentrant) {
+        _PyErr_SetString(tstate, PyExc_RuntimeError, "Cannot install a profile function "
+                         "while another profile function is being installed");
+        reentrant = 0;
+        return -1;
+    }
+    reentrant = 1;
+
     /* Call _PySys_Audit() in the context of the current thread state,
        even if tstate is not the current thread state. */
     PyThreadState *current_tstate = _PyThreadState_GET();
     if (_PySys_Audit(current_tstate, "sys.setprofile", NULL) < 0) {
+        reentrant = 0;
         return -1;
     }
 
@@ -5195,6 +5187,7 @@ _PyEval_SetProfile(PyThreadState *tstate, Py_tracefunc func, PyObject *arg)
 
     /* Flag that tracing or profiling is turned on */
     tstate->cframe->use_tracing = (func != NULL) || (tstate->c_tracefunc != NULL);
+    reentrant = 0;
     return 0;
 }
 
@@ -5215,10 +5208,21 @@ _PyEval_SetTrace(PyThreadState *tstate, Py_tracefunc func, PyObject *arg)
     /* The caller must hold the GIL */
     assert(PyGILState_Check());
 
+    static int reentrant = 0;
+
+    if (reentrant) {
+        _PyErr_SetString(tstate, PyExc_RuntimeError, "Cannot install a trace function "
+                         "while another trace function is being installed");
+        reentrant = 0;
+        return -1;
+    }
+    reentrant = 1;
+
     /* Call _PySys_Audit() in the context of the current thread state,
        even if tstate is not the current thread state. */
     PyThreadState *current_tstate = _PyThreadState_GET();
     if (_PySys_Audit(current_tstate, "sys.settrace", NULL) < 0) {
+        reentrant = 0;
         return -1;
     }
 
@@ -5228,9 +5232,8 @@ _PyEval_SetTrace(PyThreadState *tstate, Py_tracefunc func, PyObject *arg)
     tstate->c_traceobj = NULL;
     /* Must make sure that profiling is not ignored if 'traceobj' is freed */
     tstate->cframe->use_tracing = (tstate->c_profilefunc != NULL);
-    Py_XDECREF(traceobj);
-
     Py_XINCREF(arg);
+    Py_XDECREF(traceobj);
     tstate->c_traceobj = arg;
     tstate->c_tracefunc = func;
 
@@ -5238,6 +5241,7 @@ _PyEval_SetTrace(PyThreadState *tstate, Py_tracefunc func, PyObject *arg)
     tstate->cframe->use_tracing = ((func != NULL)
                            || (tstate->c_profilefunc != NULL));
 
+    reentrant = 0;
     return 0;
 }
 
@@ -5883,9 +5887,12 @@ format_exc_check_arg(PyThreadState *tstate, PyObject *exc,
         PyErr_Fetch(&type, &value, &traceback);
         PyErr_NormalizeException(&type, &value, &traceback);
         if (PyErr_GivenExceptionMatches(value, PyExc_NameError)) {
-            // We do not care if this fails because we are going to restore the
-            // NameError anyway.
-            (void)_PyObject_SetAttrId(value, &PyId_name, obj);
+            PyNameErrorObject* exc = (PyNameErrorObject*) value;
+            if (exc->name == NULL) {
+                // We do not care if this fails because we are going to restore the
+                // NameError anyway.
+                (void)_PyObject_SetAttrId(value, &PyId_name, obj);
+            }
         }
         PyErr_Restore(type, value, traceback);
     }

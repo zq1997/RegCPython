@@ -6,6 +6,7 @@ import collections
 
 from . import exceptions
 from . import mixins
+from . import tasks
 
 
 class _ContextManagerMixin:
@@ -348,8 +349,8 @@ class Semaphore(_ContextManagerMixin, mixins._LoopBoundMixin):
         super().__init__(loop=loop)
         if value < 0:
             raise ValueError("Semaphore initial value must be >= 0")
+        self._waiters = None
         self._value = value
-        self._waiters = collections.deque()
 
     def __repr__(self):
         res = super().__repr__()
@@ -358,16 +359,10 @@ class Semaphore(_ContextManagerMixin, mixins._LoopBoundMixin):
             extra = f'{extra}, waiters:{len(self._waiters)}'
         return f'<{res[1:-1]} [{extra}]>'
 
-    def _wake_up_next(self):
-        while self._waiters:
-            waiter = self._waiters.popleft()
-            if not waiter.done():
-                waiter.set_result(None)
-                return
-
     def locked(self):
-        """Returns True if semaphore can not be acquired immediately."""
-        return self._value == 0
+        """Returns True if semaphore cannot be acquired immediately."""
+        return self._value == 0 or (
+            any(not w.cancelled() for w in (self._waiters or ())))
 
     async def acquire(self):
         """Acquire a semaphore.
@@ -378,27 +373,52 @@ class Semaphore(_ContextManagerMixin, mixins._LoopBoundMixin):
         called release() to make it larger than 0, and then return
         True.
         """
-        while self._value <= 0:
-            fut = self._get_loop().create_future()
-            self._waiters.append(fut)
+        if not self.locked():
+            self._value -= 1
+            return True
+
+        if self._waiters is None:
+            self._waiters = collections.deque()
+        fut = self._get_loop().create_future()
+        self._waiters.append(fut)
+
+        # Finally block should be called before the CancelledError
+        # handling as we don't want CancelledError to call
+        # _wake_up_first() and attempt to wake up itself.
+        try:
             try:
                 await fut
-            except:
-                # See the similar code in Queue.get.
-                fut.cancel()
-                if self._value > 0 and not fut.cancelled():
-                    self._wake_up_next()
-                raise
-        self._value -= 1
+            finally:
+                self._waiters.remove(fut)
+        except exceptions.CancelledError:
+            if not fut.cancelled():
+                self._value += 1
+                self._wake_up_next()
+            raise
+
+        if self._value > 0:
+            self._wake_up_next()
         return True
 
     def release(self):
         """Release a semaphore, incrementing the internal counter by one.
+
         When it was zero on entry and another coroutine is waiting for it to
         become larger than zero again, wake up that coroutine.
         """
         self._value += 1
         self._wake_up_next()
+
+    def _wake_up_next(self):
+        """Wake up the first waiter that isn't done."""
+        if not self._waiters:
+            return
+
+        for fut in self._waiters:
+            if not fut.done():
+                self._value -= 1
+                fut.set_result(True)
+                return
 
 
 class BoundedSemaphore(Semaphore):

@@ -258,13 +258,13 @@ class AbstractEventLoop:
         """Notification that a TimerHandle has been cancelled."""
         raise NotImplementedError
 
-    def call_soon(self, callback, *args):
-        return self.call_later(0, callback, *args)
+    def call_soon(self, callback, *args, context=None):
+        return self.call_later(0, callback, *args, context=context)
 
-    def call_later(self, delay, callback, *args):
+    def call_later(self, delay, callback, *args, context=None):
         raise NotImplementedError
 
-    def call_at(self, when, callback, *args):
+    def call_at(self, when, callback, *args, context=None):
         raise NotImplementedError
 
     def time(self):
@@ -280,7 +280,7 @@ class AbstractEventLoop:
 
     # Methods for interacting with threads.
 
-    def call_soon_threadsafe(self, callback, *args):
+    def call_soon_threadsafe(self, callback, *args, context=None):
         raise NotImplementedError
 
     def run_in_executor(self, executor, func, *args):
@@ -763,12 +763,13 @@ def get_event_loop():
 
 
 def _get_event_loop(stacklevel=3):
+    # This internal method is going away in Python 3.12, left here only for
+    # backwards compatibility with 3.10.0 - 3.10.8 and 3.11.0.
+    # Similarly, this method's C equivalent in _asyncio is going away as well.
+    # See GH-99949 for more details.
     current_loop = _get_running_loop()
     if current_loop is not None:
         return current_loop
-    import warnings
-    warnings.warn('There is no current event loop',
-                  DeprecationWarning, stacklevel=stacklevel)
     return get_event_loop_policy().get_event_loop()
 
 

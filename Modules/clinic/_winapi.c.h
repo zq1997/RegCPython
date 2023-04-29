@@ -192,7 +192,7 @@ _winapi_CreateFileMapping(PyObject *module, PyObject *const *args, Py_ssize_t na
     DWORD protect;
     DWORD max_size_high;
     DWORD max_size_low;
-    LPCWSTR name;
+    LPCWSTR name = NULL;
     HANDLE _return_value;
 
     if (!_PyArg_ParseStack(args, nargs, "" F_HANDLE "" F_POINTER "kkkO&:CreateFileMapping",
@@ -233,8 +233,8 @@ static PyObject *
 _winapi_CreateJunction(PyObject *module, PyObject *const *args, Py_ssize_t nargs)
 {
     PyObject *return_value = NULL;
-    LPCWSTR src_path;
-    LPCWSTR dst_path;
+    LPCWSTR src_path = NULL;
+    LPCWSTR dst_path = NULL;
 
     if (!_PyArg_CheckPositional("CreateJunction", nargs, 2, 2)) {
         goto exit;
@@ -394,14 +394,14 @@ static PyObject *
 _winapi_CreateProcess(PyObject *module, PyObject *const *args, Py_ssize_t nargs)
 {
     PyObject *return_value = NULL;
-    const Py_UNICODE *application_name;
+    const Py_UNICODE *application_name = NULL;
     PyObject *command_line;
     PyObject *proc_attrs;
     PyObject *thread_attrs;
     BOOL inherit_handles;
     DWORD creation_flags;
     PyObject *env_mapping;
-    const Py_UNICODE *current_directory;
+    const Py_UNICODE *current_directory = NULL;
     PyObject *startup_info;
 
     if (!_PyArg_ParseStack(args, nargs, "O&OOOikOO&O:CreateProcess",
@@ -731,6 +731,32 @@ exit:
     return return_value;
 }
 
+PyDoc_STRVAR(_winapi_UnmapViewOfFile__doc__,
+"UnmapViewOfFile($module, address, /)\n"
+"--\n"
+"\n");
+
+#define _WINAPI_UNMAPVIEWOFFILE_METHODDEF    \
+    {"UnmapViewOfFile", (PyCFunction)_winapi_UnmapViewOfFile, METH_O, _winapi_UnmapViewOfFile__doc__},
+
+static PyObject *
+_winapi_UnmapViewOfFile_impl(PyObject *module, LPCVOID address);
+
+static PyObject *
+_winapi_UnmapViewOfFile(PyObject *module, PyObject *arg)
+{
+    PyObject *return_value = NULL;
+    LPCVOID address;
+
+    if (!PyArg_Parse(arg, "" F_POINTER ":UnmapViewOfFile", &address)) {
+        goto exit;
+    }
+    return_value = _winapi_UnmapViewOfFile_impl(module, address);
+
+exit:
+    return return_value;
+}
+
 PyDoc_STRVAR(_winapi_OpenFileMapping__doc__,
 "OpenFileMapping($module, desired_access, inherit_handle, name, /)\n"
 "--\n"
@@ -749,7 +775,7 @@ _winapi_OpenFileMapping(PyObject *module, PyObject *const *args, Py_ssize_t narg
     PyObject *return_value = NULL;
     DWORD desired_access;
     BOOL inherit_handle;
-    LPCWSTR name;
+    LPCWSTR name = NULL;
     HANDLE _return_value;
 
     if (!_PyArg_ParseStack(args, nargs, "kiO&:OpenFileMapping",
@@ -835,6 +861,38 @@ _winapi_PeekNamedPipe(PyObject *module, PyObject *const *args, Py_ssize_t nargs)
         goto exit;
     }
     return_value = _winapi_PeekNamedPipe_impl(module, handle, size);
+
+exit:
+    return return_value;
+}
+
+PyDoc_STRVAR(_winapi_LCMapStringEx__doc__,
+"LCMapStringEx($module, /, locale, flags, src)\n"
+"--\n"
+"\n");
+
+#define _WINAPI_LCMAPSTRINGEX_METHODDEF    \
+    {"LCMapStringEx", (PyCFunction)(void(*)(void))_winapi_LCMapStringEx, METH_FASTCALL|METH_KEYWORDS, _winapi_LCMapStringEx__doc__},
+
+static PyObject *
+_winapi_LCMapStringEx_impl(PyObject *module, PyObject *locale, DWORD flags,
+                           PyObject *src);
+
+static PyObject *
+_winapi_LCMapStringEx(PyObject *module, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *return_value = NULL;
+    static const char * const _keywords[] = {"locale", "flags", "src", NULL};
+    static _PyArg_Parser _parser = {"UkU:LCMapStringEx", _keywords, 0};
+    PyObject *locale;
+    DWORD flags;
+    PyObject *src;
+
+    if (!_PyArg_ParseStackAndKeywords(args, nargs, kwnames, &_parser,
+        &locale, &flags, &src)) {
+        goto exit;
+    }
+    return_value = _winapi_LCMapStringEx_impl(module, locale, flags, src);
 
 exit:
     return return_value;
@@ -1184,4 +1242,4 @@ _winapi__mimetypes_read_windows_registry(PyObject *module, PyObject *const *args
 exit:
     return return_value;
 }
-/*[clinic end generated code: output=ac3623be6e42017c input=a9049054013a1b77]*/
+/*[clinic end generated code: output=acabf8f2b5cc44a1 input=a9049054013a1b77]*/

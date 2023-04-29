@@ -125,7 +125,7 @@ created.  Socket addresses are represented as follows:
 
 - A string or a tuple ``(id, unit)`` is used for the :const:`SYSPROTO_CONTROL`
   protocol of the :const:`PF_SYSTEM` family. The string is the name of a
-  kernel control using a dynamically-assigned ID. The tuple can be used if ID
+  kernel control using a dynamically assigned ID. The tuple can be used if ID
   and unit number of the kernel control are known or if a registered ID is
   used.
 
@@ -233,9 +233,9 @@ resolution and/or the host configuration.  For deterministic behavior use a
 numeric address in *host* portion.
 
 All errors raise exceptions.  The normal exceptions for invalid argument types
-and out-of-memory conditions can be raised; starting from Python 3.3, errors
+and out-of-memory conditions can be raised. Errors
 related to socket or address semantics raise :exc:`OSError` or one of its
-subclasses (they used to raise :exc:`socket.error`).
+subclasses.
 
 Non-blocking mode is supported through :meth:`~socket.setblocking`.  A
 generalization of this based on timeouts is supported through
@@ -340,7 +340,7 @@ Constants
 
    .. seealso::
 
-      `Secure File Descriptor Handling <http://udrepper.livejournal.com/20407.html>`_
+      `Secure File Descriptor Handling <https://udrepper.livejournal.com/20407.html>`_
       for a more thorough explanation.
 
    .. availability:: Linux >= 2.6.27.
@@ -604,7 +604,7 @@ The following functions all create :ref:`socket objects <socket-objects>`.
       When :const:`SOCK_NONBLOCK` or :const:`SOCK_CLOEXEC`
       bit flags are applied to *type* they are cleared, and
       :attr:`socket.type` will not reflect them.  They are still passed
-      to the underlying system `socket()` call.  Therefore,
+      to the underlying system ``socket()`` call.  Therefore,
 
       ::
 
@@ -670,8 +670,8 @@ The following functions all create :ref:`socket objects <socket-objects>`.
    ``(host, port)``) and return the socket object.
 
    *family* should be either :data:`AF_INET` or :data:`AF_INET6`.
-   *backlog* is the queue size passed to :meth:`socket.listen`; when ``0``
-   a default reasonable value is chosen.
+   *backlog* is the queue size passed to :meth:`socket.listen`; if not specified
+   , a default reasonable value is chosen.
    *reuse_port* dictates whether to set the :data:`SO_REUSEPORT` socket option.
 
    If *dualstack_ipv6* is true and the platform supports it the socket will
@@ -869,7 +869,7 @@ The :mod:`socket` module also offers various network-related services:
 .. function:: getnameinfo(sockaddr, flags)
 
    Translate a socket address *sockaddr* into a 2-tuple ``(host, port)``. Depending
-   on the settings of *flags*, the result can contain a fully-qualified domain name
+   on the settings of *flags*, the result can contain a fully qualified domain name
    or numeric address representation in *host*.  Similarly, *port* can contain a
    string port name or a numeric port number.
 
@@ -948,7 +948,7 @@ The :mod:`socket` module also offers various network-related services:
    Convert an IPv4 address from dotted-quad string format (for example,
    '123.45.67.89') to 32-bit packed binary format, as a bytes object four characters in
    length.  This is useful when conversing with a program that uses the standard C
-   library and needs objects of type :c:type:`struct in_addr`, which is the C type
+   library and needs objects of type :c:struct:`in_addr`, which is the C type
    for the 32-bit packed binary this function returns.
 
    :func:`inet_aton` also accepts strings with less than three dots; see the
@@ -967,7 +967,7 @@ The :mod:`socket` module also offers various network-related services:
    Convert a 32-bit packed IPv4 address (a :term:`bytes-like object` four
    bytes in length) to its standard dotted-quad string representation (for example,
    '123.45.67.89').  This is useful when conversing with a program that uses the
-   standard C library and needs objects of type :c:type:`struct in_addr`, which
+   standard C library and needs objects of type :c:struct:`in_addr`, which
    is the C type for the 32-bit packed binary data this function takes as an
    argument.
 
@@ -984,8 +984,8 @@ The :mod:`socket` module also offers various network-related services:
 
    Convert an IP address from its family-specific string format to a packed,
    binary format. :func:`inet_pton` is useful when a library or network protocol
-   calls for an object of type :c:type:`struct in_addr` (similar to
-   :func:`inet_aton`) or :c:type:`struct in6_addr`.
+   calls for an object of type :c:struct:`in_addr` (similar to
+   :func:`inet_aton`) or :c:struct:`in6_addr`.
 
    Supported values for *address_family* are currently :const:`AF_INET` and
    :const:`AF_INET6`. If the IP address string *ip_string* is invalid,
@@ -1005,8 +1005,8 @@ The :mod:`socket` module also offers various network-related services:
    bytes) to its standard, family-specific string representation (for
    example, ``'7.10.0.5'`` or ``'5aef:2b::8'``).
    :func:`inet_ntop` is useful when a library or network protocol returns an
-   object of type :c:type:`struct in_addr` (similar to :func:`inet_ntoa`) or
-   :c:type:`struct in6_addr`.
+   object of type :c:struct:`in_addr` (similar to :func:`inet_ntoa`) or
+   :c:struct:`in6_addr`.
 
    Supported values for *address_family* are currently :const:`AF_INET` and
    :const:`AF_INET6`. If the bytes object *packed_ip* is not the correct
@@ -1477,7 +1477,7 @@ to sockets.
    ancillary data, items of the form ``(socket.SOL_SOCKET,
    socket.SCM_RIGHTS, fds)``, where *fds* is a :class:`bytes` object
    representing the new file descriptors as a binary array of the
-   native C :c:type:`int` type.  If :meth:`recvmsg` raises an
+   native C :c:expr:`int` type.  If :meth:`recvmsg` raises an
    exception after the system call returns, it will first attempt to
    close any file descriptors received via this mechanism.
 
@@ -1988,10 +1988,10 @@ the interface::
    # Include IP headers
    s.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
 
-   # receive all packages
+   # receive all packets
    s.ioctl(socket.SIO_RCVALL, socket.RCVALL_ON)
 
-   # receive a package
+   # receive a packet
    print(s.recvfrom(65565))
 
    # disabled promiscuous mode

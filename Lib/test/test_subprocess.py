@@ -227,6 +227,12 @@ class ProcessTestCase(BaseTestCase):
                 input=None, universal_newlines=True)
         self.assertNotIn('XX', output)
 
+    def test_check_output_input_none_encoding_errors(self):
+        output = subprocess.check_output(
+                [sys.executable, "-c", "print('foo')"],
+                input=None, encoding='utf-8', errors='ignore')
+        self.assertIn('foo', output)
+
     def test_check_output_stdout_arg(self):
         # check_output() refuses to accept 'stdout' argument
         with self.assertRaises(ValueError) as c:
@@ -701,7 +707,7 @@ class ProcessTestCase(BaseTestCase):
             os.close(test_pipe_w)
         pipesize = pipesize_default // 2
         if pipesize < 512:  # the POSIX minimum
-            raise unittest.SkitTest(
+            raise unittest.SkipTest(
                 'default pipesize too small to perform test.')
         p = subprocess.Popen(
             [sys.executable, "-c",
@@ -1701,6 +1707,28 @@ class RunFuncTestCase(BaseTestCase):
         self.assertLess(after_secs - before_secs, 1.5,
                         msg="TimeoutExpired was delayed! Bad traceback:\n```\n"
                         f"{stacks}```")
+
+    @unittest.skipIf(not sysconfig.get_config_var("HAVE_VFORK"),
+                     "vfork() not enabled by configure.")
+    def test__use_vfork(self):
+        # Attempts code coverage within _posixsubprocess.c on the code that
+        # probes the subprocess module for the existence and value of this
+        # attribute in 3.10.5.
+        self.assertTrue(subprocess._USE_VFORK)  # The default value regardless.
+        with mock.patch.object(subprocess, "_USE_VFORK", False):
+            self.assertEqual(self.run_python("pass").returncode, 0,
+                             msg="False _USE_VFORK failed")
+
+        class RaisingBool:
+            def __bool__(self):
+                raise RuntimeError("force PyObject_IsTrue to return -1")
+
+        with mock.patch.object(subprocess, "_USE_VFORK", RaisingBool()):
+            self.assertEqual(self.run_python("pass").returncode, 0,
+                             msg="odd bool()-error _USE_VFORK failed")
+            del subprocess._USE_VFORK
+            self.assertEqual(self.run_python("pass").returncode, 0,
+                             msg="lack of a _USE_VFORK attribute failed")
 
 
 def _get_test_grp_name():

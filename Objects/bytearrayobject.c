@@ -577,22 +577,28 @@ bytearray_setslice(PyByteArrayObject *self, Py_ssize_t lo, Py_ssize_t hi,
 static int
 bytearray_setitem(PyByteArrayObject *self, Py_ssize_t i, PyObject *value)
 {
-    int ival;
+    int ival = -1;
 
-    if (i < 0)
+    // GH-91153: We need to do this *before* the size check, in case value has a
+    // nasty __index__ method that changes the size of the bytearray:
+    if (value && !_getbytevalue(value, &ival)) {
+        return -1;
+    }
+
+    if (i < 0) {
         i += Py_SIZE(self);
+    }
 
     if (i < 0 || i >= Py_SIZE(self)) {
         PyErr_SetString(PyExc_IndexError, "bytearray index out of range");
         return -1;
     }
 
-    if (value == NULL)
+    if (value == NULL) {
         return bytearray_setslice(self, i, i+1, NULL);
+    }
 
-    if (!_getbytevalue(value, &ival))
-        return -1;
-
+    assert(0 <= ival && ival < 256);
     PyByteArray_AS_STRING(self)[i] = ival;
     return 0;
 }
@@ -607,11 +613,21 @@ bytearray_ass_subscript(PyByteArrayObject *self, PyObject *index, PyObject *valu
     if (_PyIndex_Check(index)) {
         Py_ssize_t i = PyNumber_AsSsize_t(index, PyExc_IndexError);
 
-        if (i == -1 && PyErr_Occurred())
+        if (i == -1 && PyErr_Occurred()) {
             return -1;
+        }
 
-        if (i < 0)
+        int ival = -1;
+
+        // GH-91153: We need to do this *before* the size check, in case values
+        // has a nasty __index__ method that changes the size of the bytearray:
+        if (values && !_getbytevalue(values, &ival)) {
+            return -1;
+        }
+
+        if (i < 0) {
             i += PyByteArray_GET_SIZE(self);
+        }
 
         if (i < 0 || i >= Py_SIZE(self)) {
             PyErr_SetString(PyExc_IndexError, "bytearray index out of range");
@@ -626,9 +642,7 @@ bytearray_ass_subscript(PyByteArrayObject *self, PyObject *index, PyObject *valu
             slicelen = 1;
         }
         else {
-            int ival;
-            if (!_getbytevalue(values, &ival))
-                return -1;
+            assert(0 <= ival && ival < 256);
             buf[i] = (char)ival;
             return 0;
         }
@@ -2428,11 +2442,16 @@ static PyObject *
 bytearrayiter_reduce(bytesiterobject *it, PyObject *Py_UNUSED(ignored))
 {
     _Py_IDENTIFIER(iter);
+    PyObject *iter = _PyEval_GetBuiltinId(&PyId_iter);
+
+    /* _PyEval_GetBuiltinId can invoke arbitrary code,
+     * call must be before access of iterator pointers.
+     * see issue #101765 */
+
     if (it->it_seq != NULL) {
-        return Py_BuildValue("N(O)n", _PyEval_GetBuiltinId(&PyId_iter),
-                             it->it_seq, it->it_index);
+        return Py_BuildValue("N(O)n", iter, it->it_seq, it->it_index);
     } else {
-        return Py_BuildValue("N(())", _PyEval_GetBuiltinId(&PyId_iter));
+        return Py_BuildValue("N(())", iter);
     }
 }
 

@@ -87,23 +87,27 @@ class MyBaseProto(asyncio.Protocol):
             self.connected = loop.create_future()
             self.done = loop.create_future()
 
+    def _assert_state(self, *expected):
+        if self.state not in expected:
+            raise AssertionError(f'state: {self.state!r}, expected: {expected!r}')
+
     def connection_made(self, transport):
         self.transport = transport
-        assert self.state == 'INITIAL', self.state
+        self._assert_state('INITIAL')
         self.state = 'CONNECTED'
         if self.connected:
             self.connected.set_result(None)
 
     def data_received(self, data):
-        assert self.state == 'CONNECTED', self.state
+        self._assert_state('CONNECTED')
         self.nbytes += len(data)
 
     def eof_received(self):
-        assert self.state == 'CONNECTED', self.state
+        self._assert_state('CONNECTED')
         self.state = 'EOF'
 
     def connection_lost(self, exc):
-        assert self.state in ('CONNECTED', 'EOF'), self.state
+        self._assert_state('CONNECTED', 'EOF')
         self.state = 'CLOSED'
         if self.done:
             self.done.set_result(None)
@@ -124,20 +128,24 @@ class MyDatagramProto(asyncio.DatagramProtocol):
         if loop is not None:
             self.done = loop.create_future()
 
+    def _assert_state(self, expected):
+        if self.state != expected:
+            raise AssertionError(f'state: {self.state!r}, expected: {expected!r}')
+
     def connection_made(self, transport):
         self.transport = transport
-        assert self.state == 'INITIAL', self.state
+        self._assert_state('INITIAL')
         self.state = 'INITIALIZED'
 
     def datagram_received(self, data, addr):
-        assert self.state == 'INITIALIZED', self.state
+        self._assert_state('INITIALIZED')
         self.nbytes += len(data)
 
     def error_received(self, exc):
-        assert self.state == 'INITIALIZED', self.state
+        self._assert_state('INITIALIZED')
 
     def connection_lost(self, exc):
-        assert self.state == 'INITIALIZED', self.state
+        self._assert_state('INITIALIZED')
         self.state = 'CLOSED'
         if self.done:
             self.done.set_result(None)
@@ -153,23 +161,27 @@ class MyReadPipeProto(asyncio.Protocol):
         if loop is not None:
             self.done = loop.create_future()
 
+    def _assert_state(self, expected):
+        if self.state != expected:
+            raise AssertionError(f'state: {self.state!r}, expected: {expected!r}')
+
     def connection_made(self, transport):
         self.transport = transport
-        assert self.state == ['INITIAL'], self.state
+        self._assert_state(['INITIAL'])
         self.state.append('CONNECTED')
 
     def data_received(self, data):
-        assert self.state == ['INITIAL', 'CONNECTED'], self.state
+        self._assert_state(['INITIAL', 'CONNECTED'])
         self.nbytes += len(data)
 
     def eof_received(self):
-        assert self.state == ['INITIAL', 'CONNECTED'], self.state
+        self._assert_state(['INITIAL', 'CONNECTED'])
         self.state.append('EOF')
 
     def connection_lost(self, exc):
         if 'EOF' not in self.state:
             self.state.append('EOF')  # It is okay if EOF is missed.
-        assert self.state == ['INITIAL', 'CONNECTED', 'EOF'], self.state
+        self._assert_state(['INITIAL', 'CONNECTED', 'EOF'])
         self.state.append('CLOSED')
         if self.done:
             self.done.set_result(None)
@@ -184,13 +196,17 @@ class MyWritePipeProto(asyncio.BaseProtocol):
         if loop is not None:
             self.done = loop.create_future()
 
+    def _assert_state(self, expected):
+        if self.state != expected:
+            raise AssertionError(f'state: {self.state!r}, expected: {expected!r}')
+
     def connection_made(self, transport):
         self.transport = transport
-        assert self.state == 'INITIAL', self.state
+        self._assert_state('INITIAL')
         self.state = 'CONNECTED'
 
     def connection_lost(self, exc):
-        assert self.state == 'CONNECTED', self.state
+        self._assert_state('CONNECTED')
         self.state = 'CLOSED'
         if self.done:
             self.done.set_result(None)
@@ -209,31 +225,35 @@ class MySubprocessProtocol(asyncio.SubprocessProtocol):
         self.got_data = {1: asyncio.Event(),
                          2: asyncio.Event()}
 
+    def _assert_state(self, expected):
+        if self.state != expected:
+            raise AssertionError(f'state: {self.state!r}, expected: {expected!r}')
+
     def connection_made(self, transport):
         self.transport = transport
-        assert self.state == 'INITIAL', self.state
+        self._assert_state('INITIAL')
         self.state = 'CONNECTED'
         self.connected.set_result(None)
 
     def connection_lost(self, exc):
-        assert self.state == 'CONNECTED', self.state
+        self._assert_state('CONNECTED')
         self.state = 'CLOSED'
         self.completed.set_result(None)
 
     def pipe_data_received(self, fd, data):
-        assert self.state == 'CONNECTED', self.state
+        self._assert_state('CONNECTED')
         self.data[fd] += data
         self.got_data[fd].set()
 
     def pipe_connection_lost(self, fd, exc):
-        assert self.state == 'CONNECTED', self.state
+        self._assert_state('CONNECTED')
         if exc:
             self.disconnects[fd].set_exception(exc)
         else:
             self.disconnects[fd].set_result(exc)
 
     def process_exited(self):
-        assert self.state == 'CONNECTED', self.state
+        self._assert_state('CONNECTED')
         self.returncode = self.transport.get_returncode()
 
 
@@ -649,6 +669,47 @@ class EventLoopTestsMixin:
             expected = pr.transport.get_extra_info('sockname')[1]
             self.assertEqual(port, expected)
             tr.close()
+
+    def test_create_connection_local_addr_skip_different_family(self):
+        # See https://github.com/python/cpython/issues/86508
+        port1 = socket_helper.find_unused_port()
+        port2 = socket_helper.find_unused_port()
+        getaddrinfo_orig = self.loop.getaddrinfo
+
+        async def getaddrinfo(host, port, *args, **kwargs):
+            if port == port2:
+                return [(socket.AF_INET6, socket.SOCK_STREAM, 0, '', ('::1', 0, 0, 0)),
+                        (socket.AF_INET, socket.SOCK_STREAM, 0, '', ('127.0.0.1', 0))]
+            return await getaddrinfo_orig(host, port, *args, **kwargs)
+
+        self.loop.getaddrinfo = getaddrinfo
+
+        f = self.loop.create_connection(
+            lambda: MyProto(loop=self.loop),
+            'localhost', port1, local_addr=('localhost', port2))
+
+        with self.assertRaises(OSError):
+            self.loop.run_until_complete(f)
+
+    def test_create_connection_local_addr_nomatch_family(self):
+        # See https://github.com/python/cpython/issues/86508
+        port1 = socket_helper.find_unused_port()
+        port2 = socket_helper.find_unused_port()
+        getaddrinfo_orig = self.loop.getaddrinfo
+
+        async def getaddrinfo(host, port, *args, **kwargs):
+            if port == port2:
+                return [(socket.AF_INET6, socket.SOCK_STREAM, 0, '', ('::1', 0, 0, 0))]
+            return await getaddrinfo_orig(host, port, *args, **kwargs)
+
+        self.loop.getaddrinfo = getaddrinfo
+
+        f = self.loop.create_connection(
+            lambda: MyProto(loop=self.loop),
+            'localhost', port1, local_addr=('localhost', port2))
+
+        with self.assertRaises(OSError):
+            self.loop.run_until_complete(f)
 
     def test_create_connection_local_addr_in_use(self):
         with test_utils.run_test_server() as httpd:
@@ -1283,7 +1344,7 @@ class EventLoopTestsMixin:
             else:
                 break
         else:
-            assert False, 'Can not create socket.'
+            self.fail('Can not create socket.')
 
         f = self.loop.create_datagram_endpoint(
             lambda: MyDatagramProto(loop=self.loop), sock=sock)
@@ -2541,7 +2602,6 @@ class PolicyTests(unittest.TestCase):
     def test_get_event_loop(self):
         policy = asyncio.DefaultEventLoopPolicy()
         self.assertIsNone(policy._local._loop)
-
         loop = policy.get_event_loop()
         self.assertIsInstance(loop, asyncio.AbstractEventLoop)
 
@@ -2557,6 +2617,7 @@ class PolicyTests(unittest.TestCase):
                 wraps=policy.set_event_loop) as m_set_event_loop:
 
             loop = policy.get_event_loop()
+            self.addCleanup(loop.close)
 
             # policy._local._loop must be set through .set_event_loop()
             # (the unix DefaultEventLoopPolicy needs this call to attach
@@ -2590,7 +2651,8 @@ class PolicyTests(unittest.TestCase):
 
     def test_set_event_loop(self):
         policy = asyncio.DefaultEventLoopPolicy()
-        old_loop = policy.get_event_loop()
+        old_loop = policy.new_event_loop()
+        policy.set_event_loop(old_loop)
 
         self.assertRaises(AssertionError, policy.set_event_loop, object())
 
@@ -2703,15 +2765,11 @@ class GetEventLoopTestsMixin:
             asyncio.set_event_loop_policy(Policy())
             loop = asyncio.new_event_loop()
 
-            with self.assertWarns(DeprecationWarning) as cm:
-                with self.assertRaises(TestError):
-                    asyncio.get_event_loop()
-            self.assertEqual(cm.warnings[0].filename, __file__)
+            with self.assertRaises(TestError):
+                asyncio.get_event_loop()
             asyncio.set_event_loop(None)
-            with self.assertWarns(DeprecationWarning) as cm:
-                with self.assertRaises(TestError):
-                    asyncio.get_event_loop()
-            self.assertEqual(cm.warnings[0].filename, __file__)
+            with self.assertRaises(TestError):
+                asyncio.get_event_loop()
 
             with self.assertRaisesRegex(RuntimeError, 'no running'):
                 asyncio.get_running_loop()
@@ -2725,16 +2783,11 @@ class GetEventLoopTestsMixin:
             loop.run_until_complete(func())
 
             asyncio.set_event_loop(loop)
-            with self.assertWarns(DeprecationWarning) as cm:
-                with self.assertRaises(TestError):
-                    asyncio.get_event_loop()
-            self.assertEqual(cm.warnings[0].filename, __file__)
-
+            with self.assertRaises(TestError):
+                asyncio.get_event_loop()
             asyncio.set_event_loop(None)
-            with self.assertWarns(DeprecationWarning) as cm:
-                with self.assertRaises(TestError):
-                    asyncio.get_event_loop()
-            self.assertEqual(cm.warnings[0].filename, __file__)
+            with self.assertRaises(TestError):
+                asyncio.get_event_loop()
 
         finally:
             asyncio.set_event_loop_policy(old_policy)
@@ -2753,15 +2806,11 @@ class GetEventLoopTestsMixin:
             loop = asyncio.new_event_loop()
             self.addCleanup(loop.close)
 
-            with self.assertWarns(DeprecationWarning) as cm:
-                loop2 = asyncio.get_event_loop()
+            loop2 = asyncio.get_event_loop()
             self.addCleanup(loop2.close)
-            self.assertEqual(cm.warnings[0].filename, __file__)
             asyncio.set_event_loop(None)
-            with self.assertWarns(DeprecationWarning) as cm:
-                with self.assertRaisesRegex(RuntimeError, 'no current'):
-                    asyncio.get_event_loop()
-            self.assertEqual(cm.warnings[0].filename, __file__)
+            with self.assertRaisesRegex(RuntimeError, 'no current'):
+                asyncio.get_event_loop()
 
             with self.assertRaisesRegex(RuntimeError, 'no running'):
                 asyncio.get_running_loop()
@@ -2775,15 +2824,11 @@ class GetEventLoopTestsMixin:
             loop.run_until_complete(func())
 
             asyncio.set_event_loop(loop)
-            with self.assertWarns(DeprecationWarning) as cm:
-                self.assertIs(asyncio.get_event_loop(), loop)
-            self.assertEqual(cm.warnings[0].filename, __file__)
+            self.assertIs(asyncio.get_event_loop(), loop)
 
             asyncio.set_event_loop(None)
-            with self.assertWarns(DeprecationWarning) as cm:
-                with self.assertRaisesRegex(RuntimeError, 'no current'):
-                    asyncio.get_event_loop()
-            self.assertEqual(cm.warnings[0].filename, __file__)
+            with self.assertRaisesRegex(RuntimeError, 'no current'):
+                asyncio.get_event_loop()
 
         finally:
             asyncio.set_event_loop_policy(old_policy)

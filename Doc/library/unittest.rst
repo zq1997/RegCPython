@@ -1122,8 +1122,8 @@ Test cases
       Example::
 
          with self.assertLogs('foo', level='INFO') as cm:
-            logging.getLogger('foo').info('first message')
-            logging.getLogger('foo.bar').error('second message')
+             logging.getLogger('foo').info('first message')
+             logging.getLogger('foo.bar').error('second message')
          self.assertEqual(cm.output, ['INFO:foo:first message',
                                       'ERROR:foo.bar:second message'])
 
@@ -1738,7 +1738,7 @@ Loading and running tests
 
       A list of the non-fatal errors encountered while loading tests. Not reset
       by the loader at any point. Fatal errors are signalled by the relevant
-      a method raising an exception to the caller. Non-fatal errors are also
+      method raising an exception to the caller. Non-fatal errors are also
       indicated by a synthetic test that will raise the original error when
       run.
 
@@ -1920,12 +1920,12 @@ Loading and running tests
    .. attribute:: testNamePatterns
 
       List of Unix shell-style wildcard test name patterns that test methods
-      have to match to be included in test suites (see ``-v`` option).
+      have to match to be included in test suites (see ``-k`` option).
 
       If this attribute is not ``None`` (the default), all test methods to be
       included in test suites must match one of the patterns in this list.
       Note that matches are always performed using :meth:`fnmatch.fnmatchcase`,
-      so unlike patterns passed to the ``-v`` option, simple substring patterns
+      so unlike patterns passed to the ``-k`` option, simple substring patterns
       will have to be converted using ``*`` wildcards.
 
       This affects all the :meth:`loadTestsFrom\*` methods.
@@ -2439,7 +2439,7 @@ To add cleanup code that must be run even in the case of an exception, use
    after :func:`setUpModule` if :func:`setUpModule` raises an exception.
 
    It is responsible for calling all the cleanup functions added by
-   :func:`addCleanupModule`. If you need cleanup functions to be called
+   :func:`addModuleCleanup`. If you need cleanup functions to be called
    *prior* to :func:`tearDownModule` then you can call
    :func:`doModuleCleanups` yourself.
 

@@ -653,7 +653,10 @@ class UncompressedZipImportTestCase(ImportHooksBaseTestCase):
         sys.path.insert(0, TEMP_ZIP)
         mod = importlib.import_module(TESTMOD)
         self.assertEqual(mod.test(1), 1)
-        self.assertRaises(AssertionError, mod.test, False)
+        if __debug__:
+            self.assertRaises(AssertionError, mod.test, False)
+        else:
+            self.assertEqual(mod.test(0), 0)
 
     def testImport_WithStuff(self):
         # try importing from a zipfile which contains additional
@@ -709,8 +712,8 @@ class UncompressedZipImportTestCase(ImportHooksBaseTestCase):
     def doTraceback(self, module):
         try:
             module.do_raise()
-        except:
-            tb = sys.exc_info()[2].tb_next
+        except Exception as e:
+            tb = e.__traceback__.tb_next
 
             f,lno,n,line = extract_tb(tb, 1)[0]
             self.assertEqual(line, raise_src.strip())

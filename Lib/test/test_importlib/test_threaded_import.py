@@ -273,4 +273,4 @@ def setUpModule():
 
 
 if __name__ == "__main__":
-    unittets.main()
+    unittest.main()

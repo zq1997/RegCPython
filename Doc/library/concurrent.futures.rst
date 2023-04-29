@@ -30,7 +30,7 @@ Executor Objects
 
     .. method:: submit(fn, /, *args, **kwargs)
 
-       Schedules the callable, *fn*, to be executed as ``fn(*args **kwargs)``
+       Schedules the callable, *fn*, to be executed as ``fn(*args, **kwargs)``
        and returns a :class:`Future` object representing the execution of the
        callable. ::
 
@@ -149,6 +149,13 @@ And::
    An :class:`Executor` subclass that uses a pool of at most *max_workers*
    threads to execute calls asynchronously.
 
+   All threads enqueued to ``ThreadPoolExecutor`` will be joined before the
+   interpreter can exit. Note that the exit handler which does this is
+   executed *before* any exit handlers added using ``atexit``. This means
+   exceptions in the main thread must be caught and handled in order to
+   signal threads to exit gracefully. For this reason, it is recommended
+   that ``ThreadPoolExecutor`` not be used for long-running tasks.
+
    *initializer* is an optional callable that is called at the start of
    each worker thread; *initargs* is a tuple of arguments passed to the
    initializer.  Should *initializer* raise an exception, all currently
@@ -194,7 +201,7 @@ ThreadPoolExecutor Example
            'http://www.cnn.com/',
            'http://europe.wsj.com/',
            'http://www.bbc.co.uk/',
-           'http://some-made-up-domain.com/']
+           'http://nonexistant-subdomain.python.org/']
 
    # Retrieve a single page and report the URL and contents
    def load_url(url, timeout):
@@ -391,13 +398,13 @@ The :class:`Future` class encapsulates the asynchronous execution of a callable.
        tests.
 
        If the method returns ``False`` then the :class:`Future` was cancelled,
-       i.e. :meth:`Future.cancel` was called and returned `True`.  Any threads
+       i.e. :meth:`Future.cancel` was called and returned ``True``.  Any threads
        waiting on the :class:`Future` completing (i.e. through
        :func:`as_completed` or :func:`wait`) will be woken up.
 
        If the method returns ``True`` then the :class:`Future` was not cancelled
        and has been put in the running state, i.e. calls to
-       :meth:`Future.running` will return `True`.
+       :meth:`Future.running` will return ``True``.
 
        This method can only be called once and cannot be called after
        :meth:`Future.set_result` or :meth:`Future.set_exception` have been
@@ -435,7 +442,8 @@ Module Functions
 .. function:: wait(fs, timeout=None, return_when=ALL_COMPLETED)
 
    Wait for the :class:`Future` instances (possibly created by different
-   :class:`Executor` instances) given by *fs* to complete.  Returns a named
+   :class:`Executor` instances) given by *fs* to complete. Duplicate futures
+   given to *fs* are removed and will be returned only once. Returns a named
    2-tuple of sets.  The first set, named ``done``, contains the futures that
    completed (finished or cancelled futures) before the wait completed.  The
    second set, named ``not_done``, contains the futures that did not complete

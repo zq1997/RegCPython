@@ -119,7 +119,7 @@ The :mod:`functools` module defines the following functions:
    tool for programs being converted from Python 2 which supported the use of
    comparison functions.
 
-   A comparison function is any callable that accept two arguments, compares them,
+   A comparison function is any callable that accepts two arguments, compares them,
    and returns a negative number for less-than, zero for equality, or a positive
    number for greater-than.  A key function is a callable that accepts one
    argument and returns another value to be used as the sort key.
@@ -141,7 +141,7 @@ The :mod:`functools` module defines the following functions:
    function is periodically called with the same arguments.
 
    Since a dictionary is used to cache results, the positional and keyword
-   arguments to the function must be hashable.
+   arguments to the function must be :term:`hashable`.
 
    Distinct argument patterns may be considered to be distinct calls with
    separate cache entries.  For example, `f(a=1, b=2)` and `f(b=2, a=1)`
