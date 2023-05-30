@@ -3234,6 +3234,7 @@ dispatch_opcode:
                     goto error;
                 }
             }
+            SET_REG(oparg3, bc);
 
             PyObject *codeobj = REG(oparg2);
             PyObject *qualname = ((PyCodeObject *)codeobj)->co_name;
@@ -3245,7 +3246,6 @@ dispatch_opcode:
             Py_INCREF(closures);
             ((PyFunctionObject *)func)->func_closure = closures;
 
-            SET_REG(oparg3, bc);
             SET_REG(oparg3 + 1, (PyObject *)func);
             Py_INCREF(qualname);
             SET_REG(oparg3 + 2, qualname);
